@@ -64,6 +64,11 @@ BlocklyAce.makeAceSession = function() {
     'enableLiveAutocompletion': true
   });
   const session = editor['getSession']();
+  // Opened from file:// (offline ZIP): browsers block the syntax-check
+  // worker, so switch it off (no lint marks) instead of throwing errors.
+  if (location.protocol === 'file:') {
+    session['setUseWorker'](false);
+  }
   session['setMode']('ace/mode/javascript');
   session['setTabSize'](2);
   session['setUseSoftTabs'](true);

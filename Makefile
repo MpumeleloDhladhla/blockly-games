@@ -124,9 +124,9 @@ offline: clean-offline
 	rm -f offline/blockly-games/third-party/base.js
 	rm -f offline/blockly-games/third-party/soundfonts/README.txt
 
-	mv offline/blockly-games/third-party/ace/{ace.js,mode-javascript.js,theme-chrome.js,worker-javascript.js} offline/
+	mv offline/blockly-games/third-party/ace/{ace.js,ext-language_tools.js,mode-javascript.js,theme-chrome.js,worker-javascript.js} offline/
 	rm -rf offline/blockly-games/third-party/ace/*
-	mv offline/{ace.js,mode-javascript.js,theme-chrome.js,worker-javascript.js} offline/blockly-games/third-party/ace/
+	mv offline/{ace.js,ext-language_tools.js,mode-javascript.js,theme-chrome.js,worker-javascript.js} offline/blockly-games/third-party/ace/
 
 	mv offline/blockly-games/third-party/SoundJS/soundjs.min.js offline/
 	rm -rf offline/blockly-games/third-party/SoundJS/*

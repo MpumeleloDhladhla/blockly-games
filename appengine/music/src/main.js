@@ -216,6 +216,12 @@ function registerSounds() {
     this['_soundInstances'][src] = null;
   };
 
+  // Opened from file:// (offline ZIP): Web Audio needs XHR, which browsers
+  // block there.  Go straight to <audio> tags instead of failing a probe.
+  if (location.protocol === 'file:') {
+    createjs['Sound']['registerPlugins']([createjs['HTMLAudioPlugin']]);
+  }
+
   const assetsPath = 'third-party/soundfonts/';
   const instruments = ['piano', 'trumpet', 'violin', 'drum',
                        'flute', 'banjo', 'guitar', 'choir'];
