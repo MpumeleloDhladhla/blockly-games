@@ -36,9 +36,10 @@ Arcade.Scoring.STREAK_CAP = 100;
 
 /**
  * Points lost for a miss (timed out, wrong key, or a bomb).
+ * Kept small so a younger kid can still reach the star lines.
  * @type {number}
  */
-Arcade.Scoring.MISS_PENALTY = 40;
+Arcade.Scoring.MISS_PENALTY = 25;
 
 /**
  * Points per whole second left on the clock, paid only on a finished round.

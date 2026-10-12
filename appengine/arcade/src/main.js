@@ -77,7 +77,12 @@ Arcade.overlaySecondary_ = null;
 function init() {
   // Arcade is the free-play game: every level is open so a class can all
   // compete on the same one.  Skip the shared sequential-lock pass.
+  // Progress and stars still use the shared localStorage keys, and a
+  // teacher unlock (ThinkaConfig.TEACHER_PASSWORD) is preserved if one
+  // was stored.  Two warm-up levels sit in front of the original four,
+  // so older saves are shifted before any screen reads them.
   BlocklyGames.SKIP_LEVEL_LOCKS = true;
+  Arcade.Levels.migrateStorage(storage());
 
   if (BlocklyGames.getStringParamFromUrl('champions', '')) {
     initChampions();
@@ -1241,7 +1246,10 @@ function comboController() {
 function catchController() {
   const level = Arcade.level;
   const engine = Arcade.engine;
-  const CATCH_WIDTH = 0.16;
+  // Wider basket and a longer gap are the forgiving knobs.  Each level
+  // sets its own; the defaults cover a record that forgot them.
+  const basketWidth = level.basket || Arcade.Levels.CATCH_BASKET_DEFAULT;
+  const spawnGap = level.gap || Arcade.Levels.CATCH_SPAWN_GAP_DEFAULT;
   let basket = null;
   let basketX = 0.5;
   let left = false;
@@ -1273,7 +1281,7 @@ function catchController() {
   }
 
   function land(item, now) {
-    const caught = Math.abs(item.x - basketX) <= CATCH_WIDTH / 2;
+    const caught = Math.abs(item.x - basketX) <= basketWidth / 2;
     if (item.bad) {
       if (caught) {
         engine.penalty(now);
@@ -1295,7 +1303,7 @@ function catchController() {
   return {
     setup: function() {
       basket = addToStage('arcade-basket');
-      basket.style.width = (CATCH_WIDTH * 100) + '%';
+      basket.style.width = (basketWidth * 100) + '%';
       placeAt(basket, basketX, 0.9);
       lastTick = Date.now();
       nextSpawnAt = lastTick;
@@ -1309,14 +1317,14 @@ function catchController() {
       if (stageWidth && (left !== right)) {
         const step = (level.speed * dt) / stageWidth;
         basketX += left ? -step : step;
-        basketX = Math.max(CATCH_WIDTH / 2,
-            Math.min(1 - CATCH_WIDTH / 2, basketX));
+        basketX = Math.max(basketWidth / 2,
+            Math.min(1 - basketWidth / 2, basketX));
         placeAt(basket, basketX, 0.9);
       }
 
       if (queue.length && now >= nextSpawnAt) {
         spawn(now);
-        nextSpawnAt = now + level.fallMs * 0.55;
+        nextSpawnAt = now + level.fallMs * spawnGap;
       }
 
       for (let i = items.length - 1; i >= 0; i--) {

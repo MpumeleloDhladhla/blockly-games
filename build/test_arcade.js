@@ -59,37 +59,39 @@ function plain(value) {
 
 // --------------------------------------------------------------- Curriculum
 
-test('five zones of four levels each', () => {
+test('five zones of six levels, two of them warm-ups', () => {
   assert.strictEqual(Levels.ZONE_IDS.join(','), 'pop,drag,catch,zap,combo');
+  assert.strictEqual(Levels.LEVELS_PER_ZONE, 6);
+  assert.strictEqual(Levels.WARMUP_COUNT, 2);
   for (const id of Levels.ZONE_IDS) {
     const zone = Levels.getZone(id);
     assert.ok(zone, id + ' is missing');
-    assert.strictEqual(zone.levels.length, 4, id + ' should have 4 levels');
+    assert.strictEqual(zone.levels.length, 6, id + ' should have 6 levels');
   }
-  assert.strictEqual(Levels.totalLevels(), 20);
+  assert.strictEqual(Levels.totalLevels(), 30);
   assert.strictEqual(Levels.getZone('nope'), null);
 });
 
 test('storage names match the hub progress keys', () => {
   assert.deepStrictEqual(plain(Levels.storageNames()), [
-    {name: 'arcade_pop', levels: 4},
-    {name: 'arcade_drag', levels: 4},
-    {name: 'arcade_catch', levels: 4},
-    {name: 'arcade_zap', levels: 4},
-    {name: 'arcade_combo', levels: 4},
+    {name: 'arcade_pop', levels: 6},
+    {name: 'arcade_drag', levels: 6},
+    {name: 'arcade_catch', levels: 6},
+    {name: 'arcade_zap', levels: 6},
+    {name: 'arcade_combo', levels: 6},
   ]);
 });
 
 test('three stars continues into the next level, then the next game', () => {
   assert.deepStrictEqual(plain(Levels.nextGame('pop', 1)),
       {zone: 'pop', level: 2});
-  assert.deepStrictEqual(plain(Levels.nextGame('pop', 3)),
-      {zone: 'pop', level: 4});
-  assert.deepStrictEqual(plain(Levels.nextGame('pop', 4)),
+  assert.deepStrictEqual(plain(Levels.nextGame('pop', 5)),
+      {zone: 'pop', level: 6});
+  assert.deepStrictEqual(plain(Levels.nextGame('pop', 6)),
       {zone: 'drag', level: 1});
-  assert.deepStrictEqual(plain(Levels.nextGame('zap', 4)),
+  assert.deepStrictEqual(plain(Levels.nextGame('zap', 6)),
       {zone: 'combo', level: 1});
-  assert.strictEqual(Levels.nextGame('combo', 4), null);
+  assert.strictEqual(Levels.nextGame('combo', 6), null);
   assert.strictEqual(Levels.nextGame('nope', 1), null);
   assert.strictEqual(Levels.nextGame('pop', 0), null);
 
@@ -104,7 +106,7 @@ test('level ids are unique and cover every level', () => {
   assert.strictEqual(ids.length, Levels.totalLevels());
   assert.strictEqual(new Set(ids).size, ids.length);
   assert.strictEqual(ids[0], 'pop1');
-  assert.strictEqual(ids[ids.length - 1], 'combo4');
+  assert.strictEqual(ids[ids.length - 1], 'combo6');
   assert.strictEqual(Levels.levelId('zap', 3), 'zap3');
 });
 
@@ -124,8 +126,131 @@ test('every level is playable: rounds, thresholds, and a clock', () => {
       // Every zone needs a clock so the time bonus and the HUD bar work.
       assert.ok(Engine.budgetMs(level) > 0, where + ' has no clock');
     }
-    assert.strictEqual(Levels.getLevel(zone, 5), null);
+    assert.ok(Levels.getLevel(zone, 6), id + ' level 6 should exist');
+    assert.strictEqual(Levels.getLevel(zone, 7), null);
   }
+});
+
+test('the first two levels of every zone are a gentle on-ramp', () => {
+  const pop = Levels.getZone('pop').levels;
+  assert.ok(pop[0].size > pop[1].size, 'pop warm-up 1 is the biggest');
+  assert.ok(pop[0].life > pop[2].life, 'pop warm-up outlasts the old first level');
+  assert.strictEqual(pop[0].bombs, 0);
+  assert.strictEqual(pop[1].bombs, 0);
+  assert.ok(pop[0].rounds < pop[2].rounds);
+
+  const drag = Levels.getZone('drag').levels;
+  assert.ok(drag[0].slack > drag[2].slack);
+  assert.ok(drag[0].time > drag[2].time);
+  assert.ok(drag[0].size > drag[2].size);
+  assert.strictEqual(drag[0].rounds, 4);
+
+  const caught = Levels.getZone('catch').levels;
+  assert.ok(caught[0].fallMs > caught[2].fallMs);
+  assert.ok(caught[0].speed < caught[2].speed);
+  assert.strictEqual(caught[0].bad, 0);
+  assert.strictEqual(caught[1].bad, 0);
+  assert.ok(caught[0].basket > caught[caught.length - 1].basket);
+  assert.ok(caught[0].gap > caught[caught.length - 1].gap);
+
+  const zap = Levels.getZone('zap').levels;
+  assert.ok(zap[0].life > zap[2].life);
+  assert.ok(zap[0].pool.length < zap[2].pool.length);
+  assert.strictEqual(zap[0].pool, 'asdf');
+
+  const combo = Levels.getZone('combo').levels;
+  assert.ok(combo[0].size > combo[2].size);
+  assert.ok(combo[0].life > combo[2].life);
+  assert.strictEqual(combo[0].pool, 'asdf');
+});
+
+test('climbing levels are slower than the original four-level curriculum', () => {
+  // Original Pop 1 was 92px / 2400ms; original Pop 4 was 52px / 1300ms / 6 bombs.
+  const pop = Levels.getZone('pop').levels;
+  assert.ok(pop[2].size > 92 && pop[2].life > 2400, 'old pop 1 is now easier');
+  assert.ok(pop[5].size > 52 && pop[5].life > 1300, 'old pop 4 is now easier');
+  assert.ok(pop[5].bombs < 6);
+
+  // Original Catch speeds were 430–540 px/s, falls 3800–2200ms, basket 0.16,
+  // spawn gap 0.55 of the fall.
+  const caught = Levels.getZone('catch').levels;
+  assert.ok(caught[2].fallMs > 3800 && caught[2].speed < 430);
+  assert.ok(caught[5].fallMs > 2200 && caught[5].speed < 540);
+  assert.ok(caught[5].bad < 7);
+  for (const level of caught) {
+    assert.ok(level.basket > 0.16, 'basket stays wider than the original 0.16');
+    assert.ok(level.gap > 0.55, 'drops stay further apart than the original 0.55');
+  }
+  assert.strictEqual(Levels.CATCH_BASKET_DEFAULT, 0.24);
+  assert.ok(Levels.CATCH_SPAWN_GAP_DEFAULT > 0.55);
+
+  const drag = Levels.getZone('drag').levels;
+  // Original drag 1: slack 58, clock 45000. Original drag 4: slack 30, clock 38000.
+  assert.ok(drag[2].slack > 58 && drag[2].time > 45000);
+  assert.ok(drag[5].slack > 30 && drag[5].time > 38000);
+
+  const zap = Levels.getZone('zap').levels;
+  assert.ok(zap[2].life > 2800);
+  assert.ok(zap[5].life > 1500);
+
+  const combo = Levels.getZone('combo').levels;
+  assert.ok(combo[2].life > 3600 && combo[2].size > 96);
+  assert.ok(combo[5].life > 2100 && combo[5].size > 60);
+});
+
+test('an old four-level save shifts up by the two warm-ups', () => {
+  const store = {
+    arcade_pop1: '{"score":10}',
+    arcade_pop4: '{"score":40}',
+    arcade_pop1_stars: '3',
+    arcade_pop2_stars: '2',
+    arcade_pop4_teacherUnlock: '1',
+    arcade_drag3: '{"score":3}',
+    arcade_scores: JSON.stringify({
+      pop1: [{name: 'Ann', score: 10}],
+      pop4: [{name: 'Bo', score: 40}],
+      zap2: [{name: 'Cy', score: 20}],
+    }),
+  };
+  Levels.migrateStorage(store);
+  assert.strictEqual(store.arcade_curriculum, '6');
+  assert.strictEqual(store.arcade_pop1, undefined);
+  assert.strictEqual(store.arcade_pop3, '{"score":10}');
+  assert.strictEqual(store.arcade_pop6, '{"score":40}');
+  assert.strictEqual(store.arcade_pop3_stars, '3');
+  assert.strictEqual(store.arcade_pop4_stars, '2');
+  assert.strictEqual(store.arcade_pop6_teacherUnlock, '1');
+  assert.strictEqual(store.arcade_drag5, '{"score":3}');
+  const scores = JSON.parse(store.arcade_scores);
+  assert.ok(scores.pop3 && scores.pop6 && scores.zap4);
+  assert.strictEqual(scores.pop1, undefined);
+  assert.strictEqual(scores.pop3[0].name, 'Ann');
+
+  // A second open must not shift the warm-up progress again.
+  store.arcade_pop1 = '{"score":1}';
+  Levels.migrateStorage(store);
+  assert.strictEqual(store.arcade_pop1, '{"score":1}');
+  assert.strictEqual(store.arcade_pop3, '{"score":10}');
+});
+
+test('an empty save is stamped and not shifted', () => {
+  const store = {};
+  Levels.migrateStorage(store);
+  assert.strictEqual(store.arcade_curriculum, '6');
+  assert.deepStrictEqual(Object.keys(store), ['arcade_curriculum']);
+  assert.strictEqual(Levels.migrateStorage(null), null);
+});
+
+test('a save that already reached level 5 is not shifted', () => {
+  const store = {
+    arcade_pop1: '{"score":1}',
+    arcade_pop5: '{"score":5}',
+  };
+  Levels.migrateStorage(store);
+  assert.strictEqual(store.arcade_pop1, '{"score":1}');
+  assert.strictEqual(store.arcade_pop5, '{"score":5}');
+  assert.strictEqual(store.arcade_pop3, undefined);
+  assert.strictEqual(store.arcade_curriculum, '6');
 });
 
 test('difficulty climbs across each zone', () => {
@@ -175,8 +300,9 @@ test('a hit is worth more inside a streak, up to the cap', () => {
 test('misses subtract and a finished round banks the time bonus', () => {
   assert.strictEqual(
       Scoring.finalScore({base: 1000, misses: 0, msLeft: 0, done: true}), 1000);
+  assert.strictEqual(Scoring.MISS_PENALTY, 25);
   assert.strictEqual(
-      Scoring.finalScore({base: 1000, misses: 3, msLeft: 0, done: true}), 880);
+      Scoring.finalScore({base: 1000, misses: 3, msLeft: 0, done: true}), 925);
   // 4 whole seconds left x 5 points.
   assert.strictEqual(
       Scoring.finalScore({base: 1000, misses: 0, msLeft: 4600, done: true}),
@@ -419,6 +545,8 @@ test('hub Clear data removes the leaderboard and the player name', () => {
       'Clear data would leave ' + Board.SCORES_KEY + ' behind');
   assert.ok(keys.indexOf(Board.PLAYER_KEY) !== -1,
       'Clear data would leave ' + Board.PLAYER_KEY + ' behind');
+  assert.ok(keys.indexOf('arcade_curriculum') !== -1,
+      'Clear data would leave the curriculum stamp behind');
   // The purge has to actually run inside clearData.
   const clearData = hub.match(/function clearData\(\)[\s\S]*?\n  \}/)[0];
   assert.match(clearData, /ARCADE_EXTRA_KEYS/);
@@ -455,6 +583,10 @@ test('Arcade is a first-class game in the hub and the build', () => {
 
 test('the page shell is offline-first', () => {
   const page = read('appengine/arcade.html');
+  const home = read('appengine/arcade/src/html.js');
+  assert.match(home, /Arcade\.Levels\.totalLevels\(\)/);
+  assert.doesNotMatch(home, /Twenty levels/);
+
   assert.match(page, /arcade\/style\.css/);
   assert.match(page, /common\/boot\.js/);
   assert.doesNotMatch(page, /fonts\.googleapis/);

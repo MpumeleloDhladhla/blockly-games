@@ -13,16 +13,16 @@
   var MAX_LEVEL = 10;
   // Arcade keeps the class leaderboard and the current player outside the
   // per-level keys, so "Clear data" has to remove them by name.
-  var ARCADE_EXTRA_KEYS = ['arcade_scores', 'arcade_player'];
+  var ARCADE_EXTRA_KEYS = ['arcade_scores', 'arcade_player', 'arcade_curriculum'];
   // Reboot does the same with the ending the student chose and the part
   // they reached.
   var REBOOT_EXTRA_KEYS = ['reboot_ending', 'reboot_part', 'reboot_name'];
   var ARCADE_STORAGE = [
-    {name: 'arcade_pop', levels: 4},
-    {name: 'arcade_drag', levels: 4},
-    {name: 'arcade_catch', levels: 4},
-    {name: 'arcade_zap', levels: 4},
-    {name: 'arcade_combo', levels: 4}
+    {name: 'arcade_pop', levels: 6},
+    {name: 'arcade_drag', levels: 6},
+    {name: 'arcade_catch', levels: 6},
+    {name: 'arcade_zap', levels: 6},
+    {name: 'arcade_combo', levels: 6}
   ];
   var KEYS_STORAGE = [
     {name: 'keys_lessons', levels: 8},

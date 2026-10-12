@@ -30,9 +30,10 @@ How to play
 Arcade (mouse and keyboard skills)
 ----------------------------------
 
-Arcade is the free-play game: five zones of four levels each, training
-mouse aim, drag and drop, and keyboard speed. Every level gives a score,
-so a class can compete.
+Arcade is the free-play game: five zones of six levels each, training
+mouse aim, drag and drop, and keyboard speed. The first two levels of
+every zone are slow warm-ups. Every level gives a score, so a class can
+compete.
 
 - Every Arcade level is unlocked, so the whole class can play the same
   one. The other games still use the sequential locks.
