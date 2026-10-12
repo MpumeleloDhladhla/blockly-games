@@ -1,45 +1,50 @@
-Thinka Blockly Games — offline classroom pack
-=============================================
+Thinka Coding Games
+===================
 
-This ZIP is a complete, offline-first copy of Thinka’s Blockly Games
-(https://thinka.org.za). It does not need App Engine, Python, or the
-internet after you unzip it.
+This folder is the whole classroom pack. It works offline.
+You do not need the internet after you unzip it.
 
-How to play
------------
+Unzip on Windows or Mac
+-----------------------
 
-1. Unzip this archive.
+1. Unzip this file.
+2. Open the folder named Thinka Coding Games.
 
-2. Either:
-   a) Open thinka.html (or blockly-games.html) in a web browser, or
-   b) Serve the folder with any static file server, then open index.html.
+Play on your own
+----------------
 
-   Recommended for Chrome (progress is shared across games):
+Double-click START HERE - Thinka Games.
 
-     python3 -m http.server 8080
-     # then visit http://localhost:8080/blockly-games/index.html
+That opens the games in your web browser. Chrome, Edge, and Firefox
+all work. You do not need to install anything for solo play.
 
-   Opening files directly (file://) works for playing a single game.
-   Chrome isolates localStorage per file:// URL, so the index page
-   gauges and “Clear data” may not see progress from maze.html etc.
-   A local static server avoids that.
+Host a Race with the class
+--------------------------
 
-3. Teacher password. A fresh browser uses the built-in password: thinka.
-   On the games page, the small "Teacher" link in the footer opens
-   teacher settings. There a teacher can set a new password (type it
-   twice), reset back to thinka, or remove the password. Changing,
-   resetting, or removing asks for the current password when one is on.
-   Reset puts the built-in password thinka back. With the password
-   removed, a locked level opens straight away — no password box.
+1. Double-click Start Class (Mac) or Start Class (Windows).
+2. Leave that window open. The teacher page opens in the browser.
+3. Students join the same Wi-Fi. They open the address shown on
+   the teacher screen, or they scan the code.
+4. Close the Start Class window when the class is finished.
+   That ends the race.
 
-   The choice is saved in this browser on this computer only (a salted
-   hash, or an "off" flag — never the password text). Serve the folder
-   so every game shares it. Opening each HTML file with file:// can
-   keep a separate store per file in Chrome.
+Mac, the first time: if the computer says the file cannot be opened,
+right-click Start Class (Mac).command, choose Open, then Open.
 
-   The same page can reset all student progress on this computer.
-   That does not change the password. Progress and unlocks otherwise
-   stay in that browser’s localStorage only.
+Windows, the first time: if a blue box appears, choose More info,
+then Run anyway.
+
+Start Class needs Python 3, which is free. Solo games do not.
+If Python is missing, the window tells you where to get it:
+
+    https://www.python.org/downloads/
+
+On Windows, tick "Add python.exe to PATH" in the installer.
+Then double-click Start Class again.
+
+A program that hosts the class with no Python at all is not in this
+pack. That kind of program has to be built on a Mac and on a Windows
+PC. Python 3 from the link above is the way to host.
 
 Arcade (mouse and keyboard skills)
 ----------------------------------
@@ -55,21 +60,34 @@ a score, so a class can compete.
   level 1 is open. A locked level or zone asks for the teacher
   password. With the password removed, it opens with no password box.
   Skipping a level does not mark it finished.
-- Ask each child to tap “Playing as” and type their name before playing.
+- Ask each child to tap "Playing as" and type their name before playing.
   Scores are filed under that name.
-- “Champions” shows the top five per level plus an overall ranking.
+- "Champions" shows the top five per level plus an overall ranking.
 - The scoreboard lives on that one computer, in the browser. It is not
-  shared between machines, and the hub’s “Clear data” button erases it
+  shared between machines, and the hub's "Clear data" button erases it
   along with all other progress.
 
-What is not included
---------------------
+Progress
+--------
 
-- Cloud “share by link” / App Engine storage
-- Online gallery (view / submit)
-- Error-report POSTs and Google Analytics
-- Reddit gallery redirects
-- Any runtime CDN or backend
+Progress saves on that computer, in that browser. It is not sent
+anywhere, and it is not shared with other computers.
 
-Build this ZIP from source with:  make deps && make games && make offline
-See the repository README for details.
+Teacher password
+----------------
+
+The password starts as: thinka
+
+On the games page, the Teacher settings link in the footer (the small
+Teacher link) lets a teacher set a new password, put the password back
+to thinka, or remove the password. Removing it means a locked level
+or Arcade zone opens with no password box.
+
+That choice stays on this computer, in this browser.
+
+What you need
+-------------
+
+- Chrome, Edge, or Firefox
+- For a class Race: Python 3, and the same Wi-Fi for the students
+- No internet during class

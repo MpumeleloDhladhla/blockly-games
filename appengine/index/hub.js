@@ -306,7 +306,7 @@
         }
       }
       if (label) {
-        label.textContent = app === 'race' ? 'Live' :
+        label.textContent = app === 'race' ? 'Start Class' :
             (done ? (done + ' / ' + denom) : 'New');
       }
       if (card) {

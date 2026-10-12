@@ -233,6 +233,18 @@ def test_live():
     httpd.shutdown()
 
 
+def test_pick_port():
+  holder = socket.socket()
+  holder.bind(('0.0.0.0', 0))
+  port = holder.getsockname()[1]
+  try:
+    nxt = serve_mod.pick_open_port(port, attempts=8)
+    check('classroom server skips a busy port', nxt is not None and nxt != port)
+    check('the busy port is still held', holder.fileno() >= 0)
+  finally:
+    holder.close()
+
+
 def test_free_port():
   probe = socket.socket()
   probe.bind(('127.0.0.1', 0))
@@ -260,6 +272,7 @@ def test_free_port():
 
 if __name__ == '__main__':
   test_rules()
+  test_pick_port()
   test_free_port()
   test_live()
   if FAILURES:

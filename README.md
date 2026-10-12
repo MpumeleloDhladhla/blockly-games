@@ -27,7 +27,7 @@ python3 -m http.server 8088
 
 - `make`, `python3`, `java`, `wget`, `git`, `zip`, `node` (for unit tests)
 
-Runtime play needs only a web browser.
+Solo play needs only a web browser. Hosting a class Race also needs Python 3 on the teacher laptop (the standard library only — no extra packages).
 
 ## Build
 
@@ -35,17 +35,23 @@ Runtime play needs only a web browser.
 make deps      # download Blockly, Ace, SoundJS, JS-Interpreter, Closure Compiler
 make games     # compile each game into appengine/<game>/generated/compressed.js
 make test      # teacher-unlock rules + offline-first + theme guardrails
-make offline   # write offline/thinka-blockly-games.zip
+make offline   # write offline/Thinka-Coding-Games-offline.zip
 ```
 
 `make deps` needs internet. Playing the built games does not.
 
 ### Try Race (classroom WiFi)
 
-Race is a 30 second typing race for the class. It needs this server, because the teacher laptop is the host. `python3 -m http.server` can show the page, but students cannot join.
+Race is a 30 second typing race for the class. The teacher laptop is the host. A plain file server can show the page, but students cannot join.
 
-1. Open `http://127.0.0.1:8088/race.html` on the teacher laptop and choose **Host the class**.
-2. Read the address on that screen aloud. Students on the same WiFi open it and join with a name.
+Teachers do not use a terminal. In the offline pack they double-click **Start Class (Mac)** or **Start Class (Windows)**. That starts this server, opens the teacher page, and shows the address students type. From a checkout, the same server is:
+
+```bash
+python3 serve.py --classroom --port 8088
+```
+
+1. The teacher page opens on this laptop and hosts the class.
+2. Read the address on that screen aloud, or let students scan the code. Students on the same Wi-Fi open it and join with a name.
 3. Pick a computer speed and press **Start**. The sentence changes on its own during the 30 seconds, and everyone gets the new line at the same time. The track stays on screen while everyone types. If fewer than four students join, computer racers fill the rest. They share a difficulty, and each one is a different speed. Correct letters move the car. Five in a row counts double. Ten in a row earns a shield. Three wrong letters in a row knock the car back.
 4. At 30 seconds the teacher screen shows the top 3. **New race** starts fresh.
 
@@ -105,16 +111,14 @@ The `appengine/` folder is the static web root (legacy name from upstream). It i
 ## Package and play offline
 
 1. Run `make deps && make games && make offline`.
-2. Copy `offline/thinka-blockly-games.zip` to classroom computers.
-3. Unzip. Open `thinka.html` (or `blockly-games.html`).
+2. Copy `offline/Thinka-Coding-Games-offline.zip` to classroom computers.
+3. Unzip. The folder inside is `Thinka Coding Games/`.
+4. Solo play: double-click `START HERE - Thinka Games.html`.
+5. Class Race: double-click `Start Class (Mac).command` or `Start Class (Windows).bat`. Leave that window open. Students on the same Wi-Fi open the address it shows.
 
-Best experience: serve the unzipped folder so all games share one origin (Chrome isolates `localStorage` per `file://` URL):
+The ZIP contains the games under `game-files/`, the two launchers, `README.txt`, and the Python server those launchers run (`server/`). It does not contain source trees, tests, build tools, uncompressed JS, or `.git`.
 
-```bash
-cd path/to/unzipped
-python3 -m http.server 8080
-# open http://localhost:8080/blockly-games/index.html
-```
+Hosting the race needs Python 3. A no-Python double-click app (for example a PyInstaller binary) is not in the pack: those binaries have to be built on a Mac and on a Windows PC, and this checkout cannot produce both. Solo games do not need Python.
 
 You can also open `appengine/index.html` the same way after `make games` (debug/uncompressed JS needs `sessionStorage.debug = 1`).
 
@@ -147,7 +151,7 @@ Open the games hub and use the small **Teacher** link in the footer (not a game 
 - **Reset to default:** enter the current password, then **Reset to default (thinka)**. That clears the saved choice. The built-in password `thinka` works again, and locked levels ask for it.
 - **Remove it:** enter the current password, then **Remove password**. The page stores an explicit `off` flag. Locked levels, locked Maze topics, and locked Arcade levels and zones then open straight away — the password dialog does not appear. In Reboot, Part 2 is offered from the title screen as well. Race is a live class race and does not use this password.
 - **Turn it back on:** with the password off, the settings page opens directly. Set a new password there.
-- **This computer only:** the note on the page says the setting applies to this browser on this computer. Serve the folder (or open every game from one site) so they share `localStorage`. Chrome keeps a separate store for each `file://` URL.
+- **This computer only:** the note on the page says the setting applies to this browser on this computer. Progress and the password stay on that computer, in that browser.
 - **Reset progress:** the same page can clear student solutions, stars, scores, and unlocks on this computer. The password setting stays. The hub **Clear data** button also leaves the password alone.
 - Forgetting a custom password: use **Reset to default (thinka)** on that page, or clear this site’s data for Thinka Games in the browser. The built-in password `thinka` comes back. This is a classroom soft gate, not authentication.
 

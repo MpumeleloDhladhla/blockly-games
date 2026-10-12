@@ -15,6 +15,22 @@
   var seenLine = null;
   var lineFlashUntil = 0;
 
+  var pending = null;
+
+  function wants(name) {
+    return new RegExp('[?&]' + name + '=1(?:&|$)').test(location.search);
+  }
+
+  function isLocalHost() {
+    var host = String(location.hostname || '').replace(/^\[|\]$/g, '');
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  }
+
+  // The launcher opens this laptop as the host. A join address is any other
+  // computer, or this one with ?join=1.
+  var teacherSeat = location.protocol !== 'file:' &&
+      (wants('host') || (isLocalHost() && !wants('join')));
+
   function esc(text) {
     return String(text == null ? '' : text)
         .replace(/&/g, '&amp;')
@@ -26,6 +42,9 @@
   function send(message) {
     if (socket && socket.readyState === 1) {
       socket.send(JSON.stringify(message));
+      pending = null;
+    } else {
+      pending = message;
     }
   }
 
@@ -40,6 +59,11 @@
     }
     socket.addEventListener('open', function() {
       offline = false;
+      if (teacherSeat) {
+        send({type: 'host'});
+      } else if (pending) {
+        send(pending);
+      }
       render();
     });
     socket.addEventListener('message', function(event) {
@@ -171,23 +195,93 @@
         'Three wrong letters in a row move you back ' + (rules.knockBy || 3) + '.';
   }
 
+  function osIcon(kind) {
+    if (kind === 'mac') {
+      return '<svg class="race-os" viewBox="0 0 48 48" aria-hidden="true">' +
+          '<rect x="8" y="10" width="32" height="22" rx="3" fill="none" stroke="currentColor" stroke-width="2.4"/>' +
+          '<path d="M16 38h16M24 32v6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          '</svg>';
+    }
+    return '<svg class="race-os" viewBox="0 0 48 48" aria-hidden="true">' +
+        '<rect x="6" y="8" width="36" height="26" rx="3" fill="none" stroke="currentColor" stroke-width="2.4"/>' +
+        '<path d="M18 40h12M24 34v6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+        '<path d="M24 14v10M19 19h10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+        '</svg>';
+  }
+
+  function stepCard(kind, title, steps) {
+    var items = steps.map(function(step) {
+      return '<li>' + step + '</li>';
+    }).join('');
+    return '<section class="race-step"><h2>' + osIcon(kind) + esc(title) +
+        '</h2><ol>' + items + '</ol></section>';
+  }
+
+  function setupHtml() {
+    return '<div class="race-gate race-setup" id="raceSetup">' +
+        '<a class="race-logo" href="index.html">thinka<span>.</span></a>' +
+        '<h1>Host a class race</h1>' +
+        '<p class="race-lead">To host a class, close this page and double-click <strong>Start Class</strong> in the Thinka folder.</p>' +
+        '<div class="race-steps">' +
+        stepCard('mac', 'Mac', [
+          'Open the Thinka Coding Games folder.',
+          'Double-click <strong>Start Class (Mac)</strong>.',
+          'The first time, if the Mac says it cannot open the file: right-click it, choose <strong>Open</strong>, then <strong>Open</strong>.',
+          'Leave that window open. Close it when the class is finished.'
+        ]) +
+        stepCard('win', 'Windows', [
+          'Open the Thinka Coding Games folder.',
+          'Double-click <strong>Start Class (Windows)</strong>.',
+          'If Windows asks, choose <strong>More info</strong>, then <strong>Run anyway</strong>.',
+          'Leave that window open. Close it when the class is finished.'
+        ]) +
+        '</div>' +
+        '<p class="race-rules">Students on the same Wi-Fi join from the address on the teacher screen. Solo games do not need Start Class. Double-click <strong>START HERE</strong>.</p>' +
+        '</div>';
+  }
+
+  function joinAddress() {
+    if (urls.length) {
+      return urls[0];
+    }
+    if (!isLocalHost() && location.protocol !== 'file:' && location.origin) {
+      return location.origin + '/race.html';
+    }
+    return '';
+  }
+
+  function qrMarkup(address) {
+    if (!address || !window.ThinkaQr) {
+      return '';
+    }
+    try {
+      return '<div class="race-qr" id="joinQr">' + ThinkaQr.svg(address) + '</div>';
+    } catch (err) {
+      return '';
+    }
+  }
+
   function render() {
-    if (offline && !state) {
-      app.innerHTML = '<div class="race-gate"><a class="race-logo" href="index.html">thinka<span>.</span></a>' +
-          '<h1>Race needs the Thinka server</h1>' +
-          '<p class="race-lead">On the teacher laptop run <strong>python3 serve.py --port 8088</strong>, then open this page again. A plain file server cannot host the class.</p></div>';
+    if (location.protocol === 'file:' || (offline && !state)) {
+      app.innerHTML = setupHtml();
       return;
     }
     if (!state || !state.you) {
-      app.innerHTML = '<div class="race-gate"><a class="race-logo" href="index.html">thinka<span>.</span></a>' +
-          '<h1>Typing race</h1>' +
-          '<p class="race-lead">Thirty seconds. Same line for everyone. The teacher hosts on this WiFi.</p>' +
-          '<div class="race-actions"><button type="button" id="hostBtn">Host the class</button></div>' +
-          '<label>Or join with your name<input id="nameInput" type="text" maxlength="16" autocomplete="off" value="' +
+      if (teacherSeat) {
+        app.innerHTML = '<div class="race-gate" id="raceOpening"><a class="race-logo" href="index.html">thinka<span>.</span></a>' +
+            '<h1>Opening the class</h1>' +
+            '<p class="race-lead">The teacher page is connecting. Students will use the address that appears next.</p>' +
+            '<p class="race-error">' + esc(errorText) + '</p></div>';
+        return;
+      }
+      app.innerHTML = '<div class="race-gate" id="raceJoin"><a class="race-logo" href="index.html">thinka<span>.</span></a>' +
+          '<h1>Join the race</h1>' +
+          '<p class="race-lead">Type your name. The teacher starts the race.</p>' +
+          '<label>Your name<input id="nameInput" type="text" maxlength="16" autocomplete="off" value="' +
           esc(nameDraft) + '"></label>' +
           '<div class="race-actions"><button type="button" id="joinBtn">Join</button></div>' +
           '<p class="race-error">' + esc(errorText) + '</p></div>';
-      bindGate();
+      bindJoin();
       return;
     }
     if (state.phase === 'lobby') {
@@ -206,13 +300,10 @@
     renderPodium();
   }
 
-  function bindGate() {
+  function bindJoin() {
     var nameInput = document.getElementById('nameInput');
     nameInput.addEventListener('input', function() {
       nameDraft = nameInput.value;
-    });
-    document.getElementById('hostBtn').addEventListener('click', function() {
-      send({type: 'host'});
     });
     document.getElementById('joinBtn').addEventListener('click', function() {
       send({type: 'join', name: nameInput.value});
@@ -222,11 +313,15 @@
         send({type: 'join', name: nameInput.value});
       }
     });
+    nameInput.focus();
   }
 
   function renderLobby() {
     var teacher = state.you === 'teacher';
-    var address = urls[0] || location.origin + '/race.html';
+    var address = joinAddress();
+    var extras = urls.slice(1).map(function(url) {
+      return '<div class="race-url race-url--extra">' + esc(url) + '</div>';
+    }).join('');
     var roster = (state.players || []).map(function(player) {
       return '<div><i class="race-swatch" style="background:' + esc(player.color) +
           '"></i>' + esc(player.name) + '</div>';
@@ -252,8 +347,11 @@
         '>Start</button>' : '';
     app.innerHTML = '<div class="race-lobby"><div class="race-top"><a class="race-logo" href="index.html">thinka<span>.</span></a></div>' +
         '<h1>' + (teacher ? 'Host the class' : 'You are in') + '</h1>' +
-        (teacher ? '<p class="race-lead">Students on this WiFi open:</p><div class="race-url">' +
-            esc(address) + '</div>' : '<p class="race-lead">Wait for the teacher to start. The line changes by itself during the race.</p>') +
+        (teacher ? '<p class="race-lead">Students on this Wi-Fi open this address, or scan the code:</p>' +
+            '<div class="race-joinbox"><div class="race-url" id="joinAddress">' +
+            esc(address || 'No Wi-Fi address yet. Connect this laptop to the classroom Wi-Fi and start the class again.') +
+            '</div>' + qrMarkup(address) + '</div>' + extras :
+            '<p class="race-lead">Wait for the teacher to start. The line changes by itself during the race.</p>') +
         '<h2>Computer speed</h2><div class="race-lines race-diffs">' + levels +
         '</div><p class="race-rules">Same setting, different speeds. One computer is slower, one is quicker.</p>' +
         '<h2>Racers</h2><div class="race-roster">' + roster + '</div>' + fill +
@@ -327,7 +425,12 @@
     send({type: 'key', key: event.key});
   });
 
-  connect();
-  loadUrls();
-  render();
+  if (location.protocol === 'file:') {
+    offline = true;
+    render();
+  } else {
+    connect();
+    loadUrls();
+    render();
+  }
 })();

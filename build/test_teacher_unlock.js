@@ -413,7 +413,7 @@ test('the hub links to teacher settings, and the page is offline', () => {
   assert.match(page, /src\/thinka\.config\.js/);
   assert.match(page, /this browser on this computer/);
   assert.doesNotMatch(page, /https?:\/\//);
-  assert.match(read('Makefile'), /cp appengine\/src\/thinka\.config\.js offline\/blockly-games\/src\/thinka\.config\.js/);
+  assert.match(read('build/pack_offline.sh'), /cp appengine\/src\/thinka\.config\.js "\$GAMES\/src\/thinka\.config\.js"/);
   const config = read('appengine/src/thinka.config.js');
   assert.match(config, /parsed\['v'\]/);
   assert.match(config, /parsed\['salt'\]/);

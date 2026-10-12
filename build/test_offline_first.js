@@ -121,4 +121,30 @@ test('teacher config still ships for offline unlock', () => {
   assert.match(src, /TEACHER_PASSWORD\s*=\s*'thinka'/);
 });
 
+test('offline pack is the facilitator layout', () => {
+  const mk = read('Makefile');
+  const readme = read('build/offline-readme.txt');
+  const pack = read('build/pack_offline.sh');
+  const mac = read('build/start_class_mac.command');
+  const bat = read('build/start_class_windows.bat');
+  assert.match(mk, /pack_offline\.sh/);
+  assert.match(pack, /Thinka Coding Games/);
+  assert.match(pack, /Thinka-Coding-Games-offline\.zip/);
+  assert.match(pack, /START HERE - Thinka Games\.html/);
+  assert.match(pack, /game-files/);
+  assert.match(pack, /server\/serve\.py|serve\.py/);
+  assert.doesNotMatch(readme, /isolates localStorage/);
+  assert.doesNotMatch(readme, /file:\/\//);
+  assert.match(readme, /START HERE/);
+  assert.match(readme, /Start Class/);
+  assert.match(readme, /thinka/);
+  assert.match(readme, /Teacher/);
+  assert.match(readme, /Python 3/);
+  assert.match(mac, /right-click/);
+  assert.match(mac, /python3/);
+  assert.match(mac, /py -3/);
+  assert.match(bat, /py -3/);
+  assert.match(bat, /Close this window to end the class/);
+});
+
 console.log('\n' + passed + ' tests passed');

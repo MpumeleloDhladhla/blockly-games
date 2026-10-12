@@ -71,6 +71,7 @@ test:
 	node build/test_arcade.js
 	node build/test_reboot.js
 	python3 build/test_race.py
+	node build/test_race_qr.js
 
 deps:
 	$(foreach bin,$(REQUIRED_BINS),\
@@ -111,51 +112,10 @@ deps:
 	  --js appengine/third-party/JS-Interpreter/interpreter.js\
 	  --js_output_file appengine/third-party/JS-Interpreter/compressed.js
 
-# Package a trimmed static tree that runs from a folder or ZIP with no backend.
+# Facilitator ZIP: Thinka Coding Games/ with Start Class launchers.
 # Requires a prior `make games` so compressed.js bundles exist.
 offline: clean-offline
-	mkdir offline
-	cp -R appengine offline/blockly-games
-	rm -f offline/blockly-games/*.{yaml,py,sh}
-	rm -f offline/blockly-games/{admin.html,apple-touch-icon.png,favicon.ico,robots.txt}
-	rm -rf offline/blockly-games/gallery*
-	rm -rf offline/blockly-games/generated/
-	rm -rf offline/blockly-games/{./,*,*/*}/src
-	# teacher.html loads this helper directly. Game bundles also compile it in.
-	mkdir -p offline/blockly-games/src
-	cp appengine/src/thinka.config.js offline/blockly-games/src/thinka.config.js
-	rm -f offline/blockly-games/{./,*,*/*}/generated/uncompressed.js
-	rm -f offline/blockly-games/index/title.png
-	rm -f offline/blockly-games/index/title-beta.png
-	rm -f offline/blockly-games/pond/crobots.txt
-	rm -rf offline/blockly-games/pond/battle
-	rm -f offline/blockly-games/common/stripes.svg
-	rm -f offline/blockly-games/third-party/base.js
-	rm -f offline/blockly-games/third-party/soundfonts/README.txt
-
-	mv offline/blockly-games/third-party/ace/{ace.js,ext-language_tools.js,mode-javascript.js,theme-chrome.js,worker-javascript.js} offline/
-	rm -rf offline/blockly-games/third-party/ace/*
-	mv offline/{ace.js,ext-language_tools.js,mode-javascript.js,theme-chrome.js,worker-javascript.js} offline/blockly-games/third-party/ace/
-
-	mv offline/blockly-games/third-party/SoundJS/soundjs.min.js offline/
-	rm -rf offline/blockly-games/third-party/SoundJS/*
-	mv offline/soundjs.min.js offline/blockly-games/third-party/SoundJS/
-
-	mv offline/blockly-games/third-party/blockly/media/ offline/
-	rm -rf offline/blockly-games/third-party/blockly/*
-	mv offline/media/ offline/blockly-games/third-party/blockly/
-
-	mv offline/blockly-games/third-party/JS-Interpreter/compressed.js offline/
-	rm -rf offline/blockly-games/third-party/JS-Interpreter/{*,.gitignore}
-	mv offline/compressed.js offline/blockly-games/third-party/JS-Interpreter/
-
-	echo '<html><head><meta http-equiv=refresh content="0; url=blockly-games/index.html"/></head></html>' > offline/thinka.html
-	cp offline/thinka.html offline/blockly-games.html
-	cp build/offline-readme.txt offline/README.txt
-	find offline -name '.DS_Store' -delete
-
-	cd offline; \
-	zip -r9 thinka-blockly-games.zip blockly-games/ thinka.html blockly-games.html README.txt
+	bash build/pack_offline.sh
 
 clean: clean-games clean-offline clean-deps
 

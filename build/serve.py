@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 # Copyright 2026 Thinka
 # SPDX-License-Identifier: Apache-2.0
-"""Serve appengine/ so http://localhost:8088/ is the Thinka hub.
+"""Serve the Thinka games so http://localhost:8088/ is the hub.
 
-Works on macOS (Homebrew Python) and Linux. Falls back to IPv4 if
-binding [::] fails.
+Works on macOS, Windows, and Linux with the Python 3 standard library
+only. Falls back to IPv4 if binding [::] fails.
+
+--classroom is what the double-click Start Class launchers use. It picks
+a free port, prints the address students should open, and opens the
+teacher page. It does not stop other programs.
 """
 
 import argparse
@@ -19,9 +23,8 @@ import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
-ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                    'appengine')
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 
 from race_hub import HUB  # noqa: E402
 from race_ws import accept_value  # noqa: E402
@@ -120,9 +123,97 @@ def free_port(port):
     time.sleep(0.05)
 
 
-def make_server(bind, port, handler):
+def web_root():
+  """Dev checkout serves appengine/. The offline pack serves game-files/."""
+  parent = os.path.dirname(HERE)
+  appengine = os.path.join(parent, 'appengine')
+  packed = os.path.join(parent, 'game-files')
+  if os.path.isdir(appengine):
+    return appengine
+  if os.path.isdir(packed):
+    return packed
+  return appengine
+
+
+def port_is_free(port):
+  """True when nothing is already listening on this TCP port."""
+  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  try:
+    sock.bind(('0.0.0.0', port))
+  except OSError:
+    return False
+  finally:
+    sock.close()
+  return True
+
+
+def pick_open_port(start, attempts=40):
+  """First free port at or after start. Does not stop other programs."""
+  port = start
+  last = start + attempts
+  while port < last:
+    if port_is_free(port):
+      return port
+    port += 1
+  return None
+
+
+def open_browser(url, skip=False):
+  if skip or os.environ.get('THINKA_NO_BROWSER') == '1':
+    print('Browser not opened.', flush=True)
+    return
+  try:
+    if sys.platform == 'darwin':
+      subprocess.Popen(['open', url])
+    elif sys.platform == 'win32':
+      os.startfile(url)  # noqa: E1101  (Windows only)
+    else:
+      if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
+        print('No screen found. Open this address yourself:', flush=True)
+        print('    %s' % url, flush=True)
+        return
+      subprocess.Popen(['xdg-open', url], stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL)
+  except OSError as err:
+    print('Could not open the browser (%s).' % err, flush=True)
+    print('Open this address yourself:', flush=True)
+    print('    %s' % url, flush=True)
+
+
+def classroom_banner(port):
+  info = HUB.info(port)
+  urls = info.get('urls') or []
+  teacher = 'http://127.0.0.1:%d/race.html?host=1' % port
+  print('', flush=True)
+  print('=' * 56, flush=True)
+  print('  Thinka class is ready', flush=True)
+  print('=' * 56, flush=True)
+  print('', flush=True)
+  if urls:
+    print('Students on the same Wi-Fi open this address:', flush=True)
+    print('', flush=True)
+    for url in urls:
+      print('    %s' % url, flush=True)
+    print('', flush=True)
+    print('Students join at: %s' % urls[0], flush=True)
+  else:
+    print('No Wi-Fi address found on this computer.', flush=True)
+    print('Connect to the classroom Wi-Fi and start the class again.', flush=True)
+    print('', flush=True)
+    print('Students join at: http://127.0.0.1:%d/race.html' % port, flush=True)
+  print('', flush=True)
+  print('Teacher page: %s' % teacher, flush=True)
+  print('', flush=True)
+  print('Close this window to end the class.', flush=True)
+  print('=' * 56, flush=True)
+  print('', flush=True)
+  return teacher
+
+
+def make_server(bind, port, handler, replace=True):
   ThreadingHTTPServer.allow_reuse_address = True
-  free_port(port)
+  if replace:
+    free_port(port)
   if bind in ('::', '', '*'):
     try:
       return DualStackServer(('::', port), handler)
@@ -132,18 +223,47 @@ def make_server(bind, port, handler):
 
 
 def main():
-  parser = argparse.ArgumentParser(description='Serve Thinka Games (appengine/)')
+  parser = argparse.ArgumentParser(description='Serve Thinka Games')
   parser.add_argument('--port', type=int, default=8088)
   parser.add_argument('--bind', default='::')
+  parser.add_argument('--root', default=None,
+                      help='Folder of game files. Default: appengine/ or game-files/')
+  parser.add_argument('--classroom', action='store_true',
+                      help='Pick a free port, show the join address, open the teacher page')
+  parser.add_argument('--no-browser', action='store_true',
+                      help='Do not open a browser (classroom mode)')
   args = parser.parse_args()
-  if not os.path.isdir(ROOT):
-    raise SystemExit('Missing %s — run this from the Thinka repo after '
-                     'checking out the visual-theme branch.' % ROOT)
-  handler = functools.partial(NoCacheHandler, directory=ROOT)
+  root = args.root or web_root()
+  if not os.path.isdir(root):
+    raise SystemExit('Missing the games folder (%s). Keep Start Class in the '
+                     'Thinka Coding Games folder.' % root)
+  handler = functools.partial(NoCacheHandler, directory=root)
+  if args.classroom:
+    server = None
+    start = args.port
+    for _ in range(40):
+      port = pick_open_port(start)
+      if port is None:
+        break
+      try:
+        server = make_server('0.0.0.0', port, handler, replace=False)
+        break
+      except OSError:
+        start = port + 1
+        server = None
+    if server is None:
+      raise SystemExit('Could not find a free port near %d. Close other '
+                       'Thinka class windows and try again.' % args.port)
+    port = server.server_address[1]
+    teacher = classroom_banner(port)
+    open_browser(teacher, skip=args.no_browser)
+    print('Serving %s' % root, flush=True)
+    server.serve_forever()
+    return
   server = make_server(args.bind, args.port, handler)
   print('Thinka hub: http://127.0.0.1:%d/' % args.port, flush=True)
   print('Also:       http://[::]:%d/' % args.port, flush=True)
-  print('Serving %s (no-cache)' % ROOT, flush=True)
+  print('Serving %s (no-cache)' % root, flush=True)
   server.serve_forever()
 
 
