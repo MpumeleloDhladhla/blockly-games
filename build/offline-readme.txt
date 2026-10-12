@@ -44,15 +44,17 @@ How to play
 Arcade (mouse and keyboard skills)
 ----------------------------------
 
-Arcade is the free-play game: five zones of six levels each, training
-mouse aim, drag and drop, and keyboard speed. Each game starts slow,
-and the last level is a long one that stays slower than the old finale.
-The first time a child opens a zone, a how-to card shows the controls
-and the goal; Let's go, Enter, or Space starts the round. Every level
-gives a score, so a class can compete.
+Arcade is five zones of six levels each, training mouse aim, drag
+and drop, and keyboard speed. Each game starts slow, and the last
+level is a long one that stays slower than the old finale. The first
+time a child opens a zone, a how-to card shows the controls and the
+goal; Let's go, Enter, or Space starts the round. Every level gives
+a score, so a class can compete.
 
-- Every Arcade level is unlocked, so the whole class can play the same
-  one. The other games still use the sequential locks.
+- Levels and zones unlock in order, same as the other games. Pop
+  level 1 is open. A locked level or zone asks for the teacher
+  password. With the password removed, it opens with no password box.
+  Skipping a level does not mark it finished.
 - Ask each child to tap “Playing as” and type their name before playing.
   Scores are filed under that name.
 - “Champions” shows the top five per level plus an overall ranking.

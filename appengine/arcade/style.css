@@ -104,6 +104,7 @@ body.arcade-app {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  cursor: pointer;
   min-height: 19em;
   padding: 1.1em 1.1em 1em;
   border-radius: 28px;
@@ -128,6 +129,28 @@ body.arcade-app {
   transform: translateY(-4px);
   border-color: var(--tile);
   color: var(--thinka-text);
+}
+
+.arcade-zone-card--locked {
+  border-style: dashed;
+  border-color: var(--thinka-muted);
+}
+
+.arcade-zone-card--locked .arcade-zone-go {
+  background: var(--thinka-locked-bg);
+  color: var(--thinka-locked-ink);
+  border: 2px dashed var(--thinka-muted);
+}
+
+.arcade-zone-levels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+  margin-top: 0.7em;
+}
+
+.arcade-zone-levels .level_number {
+  font-size: 0.95rem;
 }
 
 .arcade-zone-icon {

@@ -62,7 +62,7 @@ Progress is stored as `keys_lessonsN`, `keys_raceN`, and `keys_codeN` in `localS
 
 ### Try Arcade (mouse and keyboard skills)
 
-Arcade is the free-play game: pure scoring, no locks, so a whole class can compete on the same level.
+Levels and zones unlock in order. A locked level or zone asks for the teacher password (`thinka`, unless a teacher changed it on this computer). With the password removed, they open straight away. Skipping a level does not mark it complete.
 
 1. Open `http://127.0.0.1:8088/` and click the **Arcade** tile.
 2. Tap **Playing as** and type a name. Scores are filed under that name.
@@ -143,7 +143,7 @@ Open the games hub and use the small **Teacher** link in the footer (not a game 
 - **Fresh browser:** the password is the built-in one, `thinka` (`ThinkaConfig.TEACHER_PASSWORD` in `appengine/src/thinka.config.js`). You do not need to edit that file or rebuild to change it for one computer.
 - **Change it:** enter the current password, then type the new one twice. It is saved as a salted SHA-256 hash in `localStorage` (`thinkaTeacherPassword`). The page uses `crypto.subtle` when the browser provides it, including under `file://` when that API is there, and a small JavaScript SHA-256 otherwise. The password text is not stored.
 - **Reset to default:** enter the current password, then **Reset to default (thinka)**. That clears the saved choice. The built-in password `thinka` works again, and locked levels ask for it.
-- **Remove it:** enter the current password, then **Remove password**. The page stores an explicit `off` flag. Locked levels and locked Maze topics then open straight away — the password dialog does not appear. In Reboot, Part 2 is offered from the title screen as well. Arcade has no level locks (every level is already open). Race is a live class race and does not use this password.
+- **Remove it:** enter the current password, then **Remove password**. The page stores an explicit `off` flag. Locked levels, locked Maze topics, and locked Arcade levels and zones then open straight away — the password dialog does not appear. In Reboot, Part 2 is offered from the title screen as well. Race is a live class race and does not use this password.
 - **Turn it back on:** with the password off, the settings page opens directly. Set a new password there.
 - **This computer only:** the note on the page says the setting applies to this browser on this computer. Serve the folder (or open every game from one site) so they share `localStorage`. Chrome keeps a separate store for each `file://` URL.
 - **Reset progress:** the same page can clear student solutions, stars, scores, and unlocks on this computer. The password setting stays. The hub **Clear data** button also leaves the password alone.

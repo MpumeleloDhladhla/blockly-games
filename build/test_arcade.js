@@ -689,15 +689,88 @@ test('the page shell is offline-first', () => {
   assert.doesNotMatch(page, /https?:\/\//);
 });
 
-test('free play: Arcade opts out of the shared level locks', () => {
-  const lib = read('appengine/src/lib-games.js');
-  assert.match(lib, /BlocklyGames\.SKIP_LEVEL_LOCKS = false;/);
-  // The guard has to be the first thing initLevelLocks_ does.
-  const locks = lib.match(
-      /BlocklyGames\.initLevelLocks_ = function\(\) \{\n([\s\S]*?)\n  \}/);
-  assert.match(locks[1], /^  if \(BlocklyGames\.SKIP_LEVEL_LOCKS\) \{/);
-  assert.match(read('appengine/arcade/src/main.js'),
-      /BlocklyGames\.SKIP_LEVEL_LOCKS = true;/);
+test('arcade uses the shared teacher unlock instead of skipping locks', () => {
+  const main = read('appengine/arcade/src/main.js');
+  const page = read('appengine/arcade/src/html.js');
+  assert.doesNotMatch(main, /SKIP_LEVEL_LOCKS\s*=\s*true/);
+  assert.match(main, /goog\.require\('BlocklyDialogs'\)/);
+  assert.match(main, /BlocklyGames\.promptTeacherUnlock_/);
+  assert.match(main, /ThinkaConfig\.isTeacherPasswordOn\(\)/);
+  assert.match(main, /Arcade\.Levels\.isZoneOpen/);
+  assert.match(main, /Arcade\.Levels\.levelMayOpen/);
+  assert.match(main, /level_locked/);
+  assert.match(main, /arcade-zone-card--locked/);
+  assert.match(main, /data-level/);
+  assert.match(page, /BlocklyGames\.html\.dialog\(\)/);
+  assert.doesNotMatch(page, /teacherUnlockPassword/);
+  const prompt = main.match(/function promptForLevel_\([\s\S]*?\n\}/);
+  assert.ok(prompt, 'promptForLevel_ missing');
+  assert.doesNotMatch(prompt[0], /localStorage/);
+  assert.doesNotMatch(prompt[0], /saveStars/);
+  assert.doesNotMatch(prompt[0], /\+\s*level/);
+});
+
+function loadThinka(sandbox) {
+  const src = fs.readFileSync(
+      path.join(__dirname, '..', 'appengine', 'src', 'thinka.config.js'),
+      'utf8');
+  vm.runInContext(src, sandbox);
+  return sandbox.ThinkaConfig;
+}
+
+test('zones stay locked in order until the previous one is finished', () => {
+  loadThinka(sandbox);
+  const none = function() {
+    return {total: 6, done: 0};
+  };
+  const noUnlock = function() {
+    return false;
+  };
+  assert.strictEqual(Levels.isZoneOpen(0, none, noUnlock, true), true);
+  assert.strictEqual(Levels.isZoneOpen(1, none, noUnlock, true), false);
+  assert.strictEqual(Levels.isZoneOpen(2, none, noUnlock, true), false);
+  const popDone = function(name) {
+    return {total: 6, done: name === 'arcade_pop' ? 6 : 0};
+  };
+  assert.strictEqual(Levels.isZoneOpen(1, popDone, noUnlock, true), true);
+  assert.strictEqual(Levels.isZoneOpen(2, popDone, noUnlock, true), false);
+  const half = function(name) {
+    return {total: 6, done: name === 'arcade_pop' ? 5 : 0};
+  };
+  assert.strictEqual(Levels.isZoneOpen(1, half, noUnlock, true), false);
+});
+
+test('a teacher unlock opens that arcade level and does not finish it', () => {
+  loadThinka(sandbox);
+  const saved = function() {
+    return false;
+  };
+  const unlock2 = function(level) {
+    return level === 2;
+  };
+  assert.strictEqual(Levels.levelMayOpen(2, true, true, saved, saved), false);
+  assert.strictEqual(Levels.levelMayOpen(2, true, true, saved, unlock2), true);
+  assert.strictEqual(Levels.levelMayOpen(3, true, true, saved, unlock2), false);
+  assert.strictEqual(Levels.levelMayOpen(1, false, true, saved, saved), false);
+  assert.strictEqual(
+      Levels.levelMayOpen(1, false, true, saved, function(level) {
+        return level === 1;
+      }), true);
+});
+
+test('removing the classroom password opens every arcade zone and level', () => {
+  loadThinka(sandbox);
+  const none = function() {
+    return {total: 6, done: 0};
+  };
+  const no = function() {
+    return false;
+  };
+  for (let i = 0; i < Levels.ZONE_IDS.length; i++) {
+    assert.strictEqual(Levels.isZoneOpen(i, none, no, false), true, 'zone ' + i);
+  }
+  assert.strictEqual(Levels.levelMayOpen(6, false, false, no, no), true);
+  assert.strictEqual(Levels.levelMayOpen(2, false, true, no, no), false);
 });
 
 console.log('\n' + passed + ' tests passed');

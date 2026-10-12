@@ -466,9 +466,9 @@ BlocklyGames.levelUrlSuffix_ = function() {
 BlocklyGames.awaitingTeacherUnlock = false;
 
 /**
- * Opt out of sequential locks.  Set before BlocklyGames.init by free-play
- * games (Arcade), where a class competing on one level needs every student
- * able to open it.  Progress and stars are still recorded as usual.
+ * Opt out of sequential locks.  Set before BlocklyGames.init when every
+ * level should stay open.  Progress and stars are still recorded as usual.
+ * Arcade does not set this; it uses the shared teacher-password locks.
  * @type {boolean}
  */
 BlocklyGames.SKIP_LEVEL_LOCKS = false;

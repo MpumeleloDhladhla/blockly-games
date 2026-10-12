@@ -22,6 +22,8 @@
 
 goog.provide('Arcade.Levels');
 
+goog.require('ThinkaConfig');
+
 
 /**
  * Zone ids in picker / URL order.
@@ -650,6 +652,72 @@ Arcade.Levels.nextGame = function(zoneId, level) {
     return {zone: Arcade.Levels.ZONE_IDS[index + 1], level: 1};
   }
   return null;
+};
+
+/**
+ * Whether a zone on the Arcade hub may be entered.
+ *
+ * Zones run in ZONE_IDS order, the same rule as a Maze topic. The first
+ * zone is always open. A later zone opens once the one before it is
+ * finished, once this zone has any saved progress, or once a teacher
+ * unlocked its first level. With the classroom password removed, every
+ * zone is open and nothing is written as a teacher unlock.
+ *
+ * @param {number} index Index in ZONE_IDS.
+ * @param {function(string): {total: number, done: number}} progressFn
+ *     Progress summary for a zone storage name.
+ * @param {function(string): boolean} unlockedFn True if level 1 of that
+ *     storage name was opened with the teacher password.
+ * @param {boolean} passwordOn False when the classroom password is off.
+ * @returns {boolean} True if the zone is open.
+ */
+Arcade.Levels.isZoneOpen = function(index, progressFn, unlockedFn, passwordOn) {
+  if (!passwordOn || index <= 0) {
+    return true;
+  }
+  const id = Arcade.Levels.ZONE_IDS[index];
+  const prevId = Arcade.Levels.ZONE_IDS[index - 1];
+  const zone = id ? Arcade.Levels.ZONES[id] : null;
+  const prev = prevId ? Arcade.Levels.ZONES[prevId] : null;
+  if (!zone || !prev) {
+    return false;
+  }
+  const own = progressFn(zone.storage) || {total: 0, done: 0};
+  const previous = progressFn(prev.storage) || {total: 0, done: 0};
+  return ThinkaConfig.isUnitPlayable(
+      previous, own.done || 0, !!unlockedFn(zone.storage));
+};
+
+/**
+ * Whether one Arcade level may be played without a new password prompt.
+ *
+ * A removed password opens every level. Otherwise the level opens when
+ * it already has saved progress, a teacher unlocked this exact level,
+ * or its zone is open and the usual sequential rule says so. A teacher
+ * unlock is not saved progress: the next level stays locked, and the
+ * hub still counts this one as unfinished.
+ *
+ * @param {number} level Level number (1-based).
+ * @param {boolean} zoneOpen True if the zone itself may be entered.
+ * @param {boolean} passwordOn False when the classroom password is off.
+ * @param {function(number): boolean} hasSaved True if that level has
+ *     completed-progress data.
+ * @param {function(number): boolean} hasUnlock True if a teacher unlocked
+ *     that exact level.
+ * @returns {boolean} True if the level is playable.
+ */
+Arcade.Levels.levelMayOpen = function(level, zoneOpen, passwordOn, hasSaved,
+    hasUnlock) {
+  if (!passwordOn) {
+    return true;
+  }
+  if (hasUnlock(level) || hasSaved(level)) {
+    return true;
+  }
+  if (!zoneOpen) {
+    return false;
+  }
+  return ThinkaConfig.isLevelPlayable(level, hasSaved, hasUnlock);
 };
 
 /**

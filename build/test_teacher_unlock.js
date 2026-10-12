@@ -317,13 +317,84 @@ test('every password prompt uses the shared helpers', () => {
   const maze = read('appengine/maze/src/select.js');
   assert.match(maze, /ThinkaConfig\.isTeacherPasswordOn\(\)/);
   const arcade = read('appengine/arcade/src/main.js');
-  assert.match(arcade, /SKIP_LEVEL_LOCKS = true/);
-  assert.match(arcade, /isTeacherPasswordOn/);
+  const arcadeHtml = read('appengine/arcade/src/html.js');
+  const arcadeLevels = read('appengine/arcade/src/levels.js');
+  assert.doesNotMatch(arcade, /SKIP_LEVEL_LOCKS\s*=\s*true/);
+  assert.match(arcade, /goog\.require\('BlocklyDialogs'\)/);
+  assert.match(arcade, /BlocklyGames\.promptTeacherUnlock_/);
+  assert.match(arcade, /ThinkaConfig\.isTeacherPasswordOn\(\)/);
+  assert.match(arcade, /Arcade\.Levels\.isZoneOpen/);
+  assert.match(arcade, /Arcade\.Levels\.levelMayOpen/);
+  assert.match(arcadeHtml, /BlocklyGames\.html\.dialog\(\)/);
+  assert.doesNotMatch(arcadeHtml, /id="teacherUnlockPassword"/);
+  assert.doesNotMatch(arcade, /That password is not correct/);
+  assert.match(arcadeLevels, /ThinkaConfig\.isUnitPlayable/);
+  assert.match(arcadeLevels, /ThinkaConfig\.isLevelPlayable/);
+  const prompt = arcade.match(
+      /function promptForLevel_\([\s\S]*?\n\}/);
+  assert.ok(prompt, 'promptForLevel_ missing');
+  assert.match(prompt[0], /promptTeacherUnlock_/);
+  assert.doesNotMatch(prompt[0], /localStorage/);
+  assert.doesNotMatch(prompt[0], /saveStars/);
   const games = read('appengine/src/lib-games.js');
   const playable = games.match(
       /BlocklyGames\.isLevelPlayable = function\(name, level\) \{([\s\S]*?)\n\};/);
   assert.ok(playable, 'isLevelPlayable missing');
   assert.match(playable[1], /isTeacherPasswordOn\(\)/);
+});
+
+function loadArcadeLevels() {
+  const src = fs.readFileSync(
+      path.join(__dirname, '..', 'appengine', 'arcade', 'src', 'levels.js'),
+      'utf8');
+  vm.runInContext(src, sandbox);
+  return sandbox.Arcade.Levels;
+}
+
+test('arcade zones and levels follow the shared password rules', () => {
+  const Levels = loadArcadeLevels();
+  const none = function() {
+    return {total: 6, done: 0};
+  };
+  const noUnlock = function() {
+    return false;
+  };
+  assert.strictEqual(Levels.isZoneOpen(0, none, noUnlock, true), true);
+  assert.strictEqual(Levels.isZoneOpen(1, none, noUnlock, true), false);
+  assert.strictEqual(Levels.isZoneOpen(4, none, noUnlock, false), true);
+
+  const popDone = function(name) {
+    return {total: 6, done: name === 'arcade_pop' ? 6 : 0};
+  };
+  assert.strictEqual(Levels.isZoneOpen(1, popDone, noUnlock, true), true);
+  assert.strictEqual(Levels.isZoneOpen(2, popDone, noUnlock, true), false);
+
+  const dragStarted = function(name) {
+    return {total: 6, done: name === 'arcade_drag' ? 1 : 0};
+  };
+  assert.strictEqual(Levels.isZoneOpen(1, dragStarted, noUnlock, true), true);
+
+  const dragUnlocked = function(name) {
+    return name === 'arcade_drag';
+  };
+  assert.strictEqual(Levels.isZoneOpen(1, none, dragUnlocked, true), true);
+
+  const savedNone = function() {
+    return false;
+  };
+  const unlockOnly2 = function(level) {
+    return level === 2;
+  };
+  assert.strictEqual(
+      Levels.levelMayOpen(2, true, true, savedNone, savedNone), false);
+  assert.strictEqual(
+      Levels.levelMayOpen(2, true, true, savedNone, unlockOnly2), true);
+  assert.strictEqual(
+      Levels.levelMayOpen(3, true, true, savedNone, unlockOnly2), false);
+  assert.strictEqual(
+      Levels.levelMayOpen(1, false, true, savedNone, savedNone), false);
+  assert.strictEqual(
+      Levels.levelMayOpen(6, false, false, savedNone, savedNone), true);
 });
 
 test('the hub links to teacher settings, and the page is offline', () => {

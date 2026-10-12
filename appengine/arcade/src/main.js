@@ -22,6 +22,7 @@ goog.require('Arcade.Engine');
 goog.require('Arcade.Levels');
 goog.require('Arcade.Scoring');
 goog.require('Arcade.html');
+goog.require('BlocklyDialogs');
 goog.require('BlocklyGames');
 goog.require('ThinkaConfig');
 
@@ -76,14 +77,12 @@ Arcade.overlaySecondary_ = null;
  * Route to the right screen.
  */
 function init() {
-  // Arcade is the free-play game: every level is open so a class can all
-  // compete on the same one.  Skip the shared sequential-lock pass.
-  // ThinkaConfig.isTeacherPasswordOn() is not consulted here on purpose.
-  // Progress, stars, and any per-level teacher-unlock flags still use the
-  // shared localStorage keys.  Each zone grew from four levels to six,
-  // with the two new ones in front, so older saves are shifted before
-  // any screen reads them.
-  BlocklyGames.SKIP_LEVEL_LOCKS = true;
+  // Same sequential locks as the other games. Level dots and a direct
+  // URL go through BlocklyGames.initLevelLocks_ (the shared teacher
+  // dialog). Zone tiles on this hub use that same dialog. A removed
+  // password opens every level with no prompt. Each zone grew from four
+  // levels to six, with the two new ones in front, so older saves are
+  // shifted before any screen reads them.
   Arcade.Levels.migrateStorage(storage());
 
   if (BlocklyGames.getStringParamFromUrl('champions', '')) {
@@ -174,27 +173,11 @@ function initPlay(zone) {
 
   Arcade.engine = new Arcade.Engine(level);
   paintHud();
-
-  const startButton = BlocklyGames.getElementById('arcadeStartButton');
-  if (startButton) {
-    BlocklyGames.bindClick(startButton, startRound);
-  }
-  const how = BlocklyGames.getElementById('arcadeHow');
-  if (how) {
-    BlocklyGames.bindClick(how, function() {
-      showExplainer(false);
-    });
-  }
-  const letsGo = BlocklyGames.getElementById('arcadeExplainGo');
-  if (letsGo) {
-    BlocklyGames.bindClick(letsGo, onExplainGo);
-  }
-  document.addEventListener('keydown', onDocumentKey, true);
-  window.addEventListener('blur', pauseOnBlur);
-  // First visit to this game type: show the controls before anything moves.
-  if (!hasSeenExplainer(zone)) {
-    showExplainer(true);
-  }
+  // A locked URL is already prompting via the shared lock pass. Wait for
+  // that dialog before the how-to card or the Start key can cover it.
+  // Level 1 of a locked zone is playable by the per-level rule, so that
+  // case prompts here.
+  settleLevelLock_();
 }
 
 /**
@@ -331,50 +314,333 @@ function paintZones() {
   const board = Arcade.Board.load(storage());
   for (let i = 0; i < Arcade.Levels.ZONE_IDS.length; i++) {
     const zone = Arcade.Levels.ZONES[Arcade.Levels.ZONE_IDS[i]];
-    let done = 0;
-    let stars = 0;
-    let best = 0;
-    for (let lv = 1; lv <= zone.levels.length; lv++) {
-      if (BlocklyGames.loadFromLocalStorage(zone.storage, lv)) {
-        done++;
-      }
-      stars += BlocklyGames.loadStars(zone.storage, lv);
-      const top = Arcade.Board.top(board, Arcade.Levels.levelId(zone.id, lv));
-      if (top.length) {
-        best = Math.max(best, top[0]['score']);
-      }
-    }
-    const card = document.createElement('a');
-    card.className = 'arcade-zone-card arcade-zone-card--' + zone.id;
-    card.href = arcadeUrl({zone: zone.id, level: nextLevel(zone)});
-    card.innerHTML =
-        Arcade.html.zoneIcon(zone.id) +
-        '<span class="arcade-zone-kicker">' + BlocklyGames.esc(zone.kicker) +
-        '</span>' +
-        '<span class="arcade-zone-title">' + BlocklyGames.esc(zone.title) +
-        '</span>' +
-        '<span class="arcade-zone-blurb">' + BlocklyGames.esc(zone.blurb) +
-        '</span>' +
-        '<span class="arcade-zone-meta">' +
-        '<span class="arcade-zone-progress">' + done + ' / ' +
-        zone.levels.length + '</span>' +
-        '<span class="arcade-zone-stars">' + stars + ' \u2605</span>' +
-        '</span>' +
-        '<span class="arcade-zone-best">' +
-        (best ? 'Top score ' + best : 'No scores yet') + '</span>' +
-        '<span class="arcade-zone-go">Play</span>';
-    host.appendChild(card);
+    host.appendChild(zoneCard_(zone, board));
   }
 }
 
 /**
- * First level of a zone the player has not finished, or 1.
+ * One hub tile: the zone, its six levels, and Play or Locked.
+ * @param {!Object} zone Zone record.
+ * @param {!Object} board Leaderboard data.
+ * @returns {!Element} Card.
+ * @private
+ */
+function zoneCard_(zone, board) {
+  let done = 0;
+  let stars = 0;
+  let best = 0;
+  for (let lv = 1; lv <= zone.levels.length; lv++) {
+    if (BlocklyGames.loadFromLocalStorage(zone.storage, lv)) {
+      done++;
+    }
+    stars += BlocklyGames.loadStars(zone.storage, lv);
+    const top = Arcade.Board.top(board, Arcade.Levels.levelId(zone.id, lv));
+    if (top.length) {
+      best = Math.max(best, top[0]['score']);
+    }
+  }
+  const open = zoneOpen_(zone);
+  const card = document.createElement('div');
+  card.className = 'arcade-zone-card arcade-zone-card--' + zone.id +
+      (open ? '' : ' arcade-zone-card--locked');
+  card.setAttribute('data-zone', zone.id);
+  card.setAttribute('role', 'link');
+  card.setAttribute('tabindex', '0');
+  card.innerHTML =
+      Arcade.html.zoneIcon(zone.id) +
+      '<span class="arcade-zone-kicker">' + BlocklyGames.esc(zone.kicker) +
+      '</span>' +
+      '<span class="arcade-zone-title">' + BlocklyGames.esc(zone.title) +
+      '</span>' +
+      '<span class="arcade-zone-blurb">' + BlocklyGames.esc(zone.blurb) +
+      '</span>' +
+      '<span class="arcade-zone-meta">' +
+      '<span class="arcade-zone-progress">' + done + ' / ' +
+      zone.levels.length + '</span>' +
+      '<span class="arcade-zone-stars">' + stars + ' \u2605</span>' +
+      '</span>' +
+      '<span class="arcade-zone-best">' +
+      (best ? 'Top score ' + best : 'No scores yet') + '</span>' +
+      '<span class="arcade-zone-go">' + (open ? 'Play' : 'Locked') + '</span>';
+  const go = card.querySelector('.arcade-zone-go');
+  const levels = document.createElement('div');
+  levels.className = 'arcade-zone-levels';
+  for (let lv = 1; lv <= zone.levels.length; lv++) {
+    levels.appendChild(zoneLevelLink_(zone, lv));
+  }
+  card.insertBefore(levels, go);
+  card.addEventListener('click', function(e) {
+    if (eventInZoneLevels_(e.target)) {
+      return;
+    }
+    openZone_(zone, card);
+  });
+  card.addEventListener('keydown', function(e) {
+    if (eventInZoneLevels_(e.target)) {
+      return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openZone_(zone, card);
+    }
+  });
+  return card;
+}
+
+/**
+ * True if the event started on a zone's level numbers.
+ * parentNode walk so ADVANCED compile does not rename Element.closest.
+ * @param {EventTarget} node Event target.
+ * @returns {boolean} True if the target is inside the level row.
+ * @private
+ */
+function eventInZoneLevels_(node) {
+  while (node && node !== document.body) {
+    if (node.classList && node.classList.contains('arcade-zone-levels')) {
+      return true;
+    }
+    node = node.parentNode;
+  }
+  return false;
+}
+
+/**
+ * Level number on a hub zone tile. A locked one asks for the password
+ * instead of navigating.
+ * @param {!Object} zone Zone record.
+ * @param {number} level Level number.
+ * @returns {!Element} Link.
+ * @private
+ */
+function zoneLevelLink_(zone, level) {
+  const link = document.createElement('a');
+  link.className = 'level_number';
+  link.href = arcadeUrl({zone: zone.id, level: level});
+  link.textContent = String(level);
+  link.setAttribute('data-level', String(level));
+  if (BlocklyGames.loadFromLocalStorage(zone.storage, level)) {
+    link.classList.add('level_done');
+  }
+  const stars = BlocklyGames.loadStars(zone.storage, level);
+  if (stars) {
+    link.classList.add('level_stars' + stars);
+  }
+  if (levelMayOpen_(zone, level)) {
+    return link;
+  }
+  link.classList.add('level_locked');
+  link.setAttribute('aria-label', 'Level ' + level + ', locked');
+  const onLocked = function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (BlocklyGames.awaitingTeacherUnlock) {
+      return;
+    }
+    promptForLevel_(zone, level, link, function(ok) {
+      if (ok) {
+        window.location = link.href;
+      }
+    });
+  };
+  link.addEventListener('click', onLocked, true);
+  link.addEventListener('touchend', onLocked, true);
+  return link;
+}
+
+/**
+ * Play the zone, or ask for the teacher password when it is locked.
+ * @param {!Object} zone Zone record.
+ * @param {!Element} origin Clicked card.
+ * @private
+ */
+function openZone_(zone, origin) {
+  if (zoneOpen_(zone)) {
+    window.location = arcadeUrl({zone: zone.id, level: nextLevel(zone)});
+    return;
+  }
+  if (BlocklyGames.awaitingTeacherUnlock) {
+    return;
+  }
+  // Opening the zone unlocks its first level only, same as a Maze topic.
+  promptForLevel_(zone, 1, origin, function(ok) {
+    if (ok) {
+      window.location = arcadeUrl({zone: zone.id, level: 1});
+    }
+  });
+}
+
+/**
+ * Shared teacher-password dialog for one Arcade level.
+ * The dialog records the unlock flag and nothing else, so a skipped
+ * level stays unfinished on the hub.
+ * @param {!Object} zone Zone record.
+ * @param {number} level Level number.
+ * @param {Element} origin Animation origin, or null.
+ * @param {function(boolean)} callback Called with true if the level opened.
+ * @private
+ */
+function promptForLevel_(zone, level, origin, callback) {
+  const previous = BlocklyGames.storageName;
+  BlocklyGames.storageName = zone.storage;
+  BlocklyGames.promptTeacherUnlock_(level, origin, function(ok) {
+    BlocklyGames.storageName = previous;
+    callback(!!ok);
+  });
+}
+
+/**
+ * True if this zone may be entered without a password prompt.
+ * @param {!Object} zone Zone record.
+ * @returns {boolean} True if the zone is open.
+ * @private
+ */
+function zoneOpen_(zone) {
+  const index = Arcade.Levels.ZONE_IDS.indexOf(zone.id);
+  return Arcade.Levels.isZoneOpen(
+      index, storageSummary_, zoneLevel1Unlocked_,
+      ThinkaConfig.isTeacherPasswordOn());
+}
+
+/**
+ * True if this level may be played without a new password prompt.
+ * @param {!Object} zone Zone record.
+ * @param {number} level Level number.
+ * @returns {boolean} True if the level is open.
+ * @private
+ */
+function levelMayOpen_(zone, level) {
+  return Arcade.Levels.levelMayOpen(
+      level, zoneOpen_(zone), ThinkaConfig.isTeacherPasswordOn(),
+      function(lvl) {
+        return !!BlocklyGames.loadFromLocalStorage(zone.storage, lvl);
+      },
+      function(lvl) {
+        return BlocklyGames.hasTeacherUnlock(zone.storage, lvl);
+      });
+}
+
+/**
+ * Saved-progress summary for one zone storage name.
+ * @param {string} storageName Zone storage name.
+ * @returns {{total: number, done: number}} Summary.
+ * @private
+ */
+function storageSummary_(storageName) {
+  for (let i = 0; i < Arcade.Levels.ZONE_IDS.length; i++) {
+    const zone = Arcade.Levels.ZONES[Arcade.Levels.ZONE_IDS[i]];
+    if (zone.storage !== storageName) {
+      continue;
+    }
+    let done = 0;
+    for (let lv = 1; lv <= zone.levels.length; lv++) {
+      if (BlocklyGames.loadFromLocalStorage(zone.storage, lv)) {
+        done++;
+      }
+    }
+    return {total: zone.levels.length, done: done};
+  }
+  return {total: 0, done: 0};
+}
+
+/**
+ * True if a teacher unlocked level 1 of this zone.
+ * @param {string} storageName Zone storage name.
+ * @returns {boolean} True if unlocked.
+ * @private
+ */
+function zoneLevel1Unlocked_(storageName) {
+  return BlocklyGames.hasTeacherUnlock(storageName, 1);
+}
+
+/**
+ * Bind Start, help, and keys once the level is actually open.
+ * @private
+ */
+function wireRoundControls_() {
+  const startButton = BlocklyGames.getElementById('arcadeStartButton');
+  if (startButton) {
+    BlocklyGames.bindClick(startButton, startRound);
+  }
+  const how = BlocklyGames.getElementById('arcadeHow');
+  if (how) {
+    BlocklyGames.bindClick(how, function() {
+      showExplainer(false);
+    });
+  }
+  const letsGo = BlocklyGames.getElementById('arcadeExplainGo');
+  if (letsGo) {
+    BlocklyGames.bindClick(letsGo, onExplainGo);
+  }
+  document.addEventListener('keydown', onDocumentKey, true);
+  window.addEventListener('blur', pauseOnBlur);
+  if (Arcade.zone && !hasSeenExplainer(Arcade.zone)) {
+    showExplainer(true);
+  }
+}
+
+/**
+ * Hold the round until a locked level is opened or the visit is cancelled.
+ * @private
+ */
+function settleLevelLock_() {
+  if (!Arcade.zone || levelMayOpen_(Arcade.zone, BlocklyGames.LEVEL)) {
+    wireRoundControls_();
+    return;
+  }
+  // initLevelLocks_ already opened the shared dialog for a locked level
+  // number. Level 1 of a locked zone is not caught by that pass.
+  if (!BlocklyGames.isLevelPlayable(Arcade.zone.storage, BlocklyGames.LEVEL)) {
+    waitUntilPlayable_(function(ok) {
+      if (ok) {
+        wireRoundControls_();
+      }
+    });
+    return;
+  }
+  const currentLocked = BlocklyGames.getElementById(
+      'level' + BlocklyGames.LEVEL);
+  if (currentLocked) {
+    currentLocked.classList.add('level_locked');
+  }
+  promptForLevel_(Arcade.zone, BlocklyGames.LEVEL, null, function(ok) {
+    if (!ok) {
+      window.location = arcadeUrl({});
+      return;
+    }
+    const current = BlocklyGames.getElementById('level' + BlocklyGames.LEVEL);
+    if (current) {
+      current.classList.remove('level_locked');
+    }
+    wireRoundControls_();
+  });
+}
+
+/**
+ * Poll until the shared password dialog closes.
+ * @param {function(boolean)} callback Called with true if the level is open.
+ * @private
+ */
+function waitUntilPlayable_(callback) {
+  const wait = function() {
+    if (BlocklyGames.awaitingTeacherUnlock) {
+      window.setTimeout(wait, 40);
+      return;
+    }
+    callback(!!(Arcade.zone &&
+        levelMayOpen_(Arcade.zone, BlocklyGames.LEVEL)));
+  };
+  wait();
+}
+
+/**
+ * First unfinished level that is actually playable, or 1.
  * @param {!Object} zone Zone record.
  * @returns {number} Level number.
  */
 function nextLevel(zone) {
   for (let lv = 1; lv <= zone.levels.length; lv++) {
-    if (!BlocklyGames.loadFromLocalStorage(zone.storage, lv)) {
+    if (!BlocklyGames.loadFromLocalStorage(zone.storage, lv) &&
+        BlocklyGames.isLevelPlayable(zone.storage, lv)) {
       return lv;
     }
   }
@@ -390,6 +656,9 @@ function nextLevel(zone) {
  * Clear the stage and begin play.
  */
 function startRound() {
+  if (BlocklyGames.awaitingTeacherUnlock) {
+    return;
+  }
   const stage = BlocklyGames.getElementById('arcadeStage');
   if (!stage) {
     return;
@@ -735,6 +1004,9 @@ function scoreTable(rows) {
  * @param {!Object} opts Overlay options.
  */
 function showOverlay(opts) {
+  if (BlocklyGames.awaitingTeacherUnlock) {
+    return;
+  }
   const overlay = BlocklyGames.getElementById('arcadeOverlay');
   const title = BlocklyGames.getElementById('arcadeOverlayTitle');
   const copy = BlocklyGames.getElementById('arcadeOverlayCopy');
@@ -906,6 +1178,9 @@ function setPageInert_(locked) {
  * @param {boolean=} auto True when this is the automatic first-play open.
  */
 function showExplainer(auto) {
+  if (BlocklyGames.awaitingTeacherUnlock) {
+    return;
+  }
   const card = BlocklyGames.getElementById('arcadeExplain');
   const zone = Arcade.zone;
   if (!card || !zone || !zone.explainer) {
@@ -997,6 +1272,13 @@ function onExplainGo() {
  * @param {!Event} e Keyboard event.
  */
 function onDocumentKey(e) {
+  if (BlocklyGames.awaitingTeacherUnlock) {
+    return;
+  }
+  const target = e.target;
+  if (target && target.id === 'teacherUnlockPassword') {
+    return;
+  }
   if (explainerOpen()) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -1008,7 +1290,6 @@ function onDocumentKey(e) {
   if (overlayOpen()) {
     return;
   }
-  const target = e.target;
   if (target && (target.id === 'arcadeNameInput' ||
       target.id === 'languageMenu')) {
     return;
