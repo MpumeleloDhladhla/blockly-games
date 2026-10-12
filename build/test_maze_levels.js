@@ -977,5 +977,88 @@ check('every authored topic has a picture-book explainer', () => {
   }
 });
 
+function loadDeleteArea() {
+  const sandbox = {
+    goog: {
+      provide: function(name) {
+        const parts = name.split('.');
+        let obj = sandbox;
+        for (const part of parts) {
+          obj[part] = obj[part] || {};
+          obj = obj[part];
+        }
+      },
+      require: function() {},
+    },
+  };
+  const src = fs.readFileSync(
+      path.join(__dirname, '..', 'appengine', 'src', 'delete_area.js'),
+      'utf8');
+  vm.createContext(sandbox);
+  vm.runInContext(src, sandbox);
+  return sandbox.BlocklyGames.DeleteArea;
+}
+
+const DeleteArea = loadDeleteArea();
+
+// Measured on sequence level 2 at 1280x800. The flyout delete rect's right
+// edge is the toolbox edge. A second move-forward, grabbed on its left side
+// and released here, is visibly on the white workspace (center x=664) while
+// the pointer (x=600) is still inside the toolbox (right=608). That release
+// used to delete the block.
+const LEVEL2_FLYOUT = {left: -1e9, right: 608.03125, top: -1e9, bottom: 1e9};
+const LEVEL2_DRAGGED_BLOCK = {
+  left: 592, right: 737.0426025390625, top: 165, bottom: 205,
+};
+const LEVEL2_TRASH = {left: 1183, right: 1250, top: 700, bottom: 780};
+
+check('level 2 block on the canvas is not inside the toolbox delete area', () => {
+  assert.strictEqual(
+      DeleteArea.blockCenterInside(LEVEL2_DRAGGED_BLOCK, LEVEL2_FLYOUT),
+      false);
+});
+
+check('a block still over the toolbox stays inside the delete area', () => {
+  const overToolbox = {left: 450, right: 590, top: 120, bottom: 160};
+  assert.strictEqual(
+      DeleteArea.blockCenterInside(overToolbox, LEVEL2_FLYOUT), true);
+});
+
+check('level 2 starter is not inside the trashcan hotspot', () => {
+  const starter = {left: 701.38, right: 847.75, top: 208.33, bottom: 248.33};
+  assert.strictEqual(DeleteArea.blockCenterInside(starter, LEVEL2_TRASH), false);
+});
+
+check('a block dropped on the trashcan is inside that hotspot', () => {
+  const onTrash = {left: 1180, right: 1320, top: 700, bottom: 750};
+  assert.strictEqual(DeleteArea.blockCenterInside(onTrash, LEVEL2_TRASH), true);
+});
+
+check('an empty block box is not treated as inside a delete area', () => {
+  assert.strictEqual(
+      DeleteArea.blockCenterInside({left: 0, right: 0, top: 0, bottom: 0},
+          LEVEL2_FLYOUT),
+      false);
+  assert.strictEqual(DeleteArea.blockCenterInside(null, LEVEL2_FLYOUT), false);
+  assert.strictEqual(
+      DeleteArea.blockCenterInside(LEVEL2_DRAGGED_BLOCK, null), false);
+});
+
+check('the drag hook keeps the level 2 block and still deletes one on the toolbox', () => {
+  const flyoutContains = (x, y) =>
+      x >= LEVEL2_FLYOUT.left && x <= LEVEL2_FLYOUT.right &&
+      y >= LEVEL2_FLYOUT.top && y <= LEVEL2_FLYOUT.bottom;
+  const dragged = LEVEL2_DRAGGED_BLOCK;
+  assert.strictEqual(DeleteArea.centerOutside(
+      dragged.left, dragged.right, dragged.top, dragged.bottom, flyoutContains),
+      true);
+  assert.strictEqual(DeleteArea.centerOutside(
+      450, 590, 120, 160, flyoutContains), false);
+  assert.strictEqual(DeleteArea.centerOutside(
+      0, 0, 0, 0, flyoutContains), false);
+  assert.strictEqual(DeleteArea.centerOutside(
+      dragged.left, dragged.right, dragged.top, dragged.bottom, null), false);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

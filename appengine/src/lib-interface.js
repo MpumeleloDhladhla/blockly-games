@@ -15,9 +15,11 @@ goog.provide('BlocklyInterface');
 goog.require('Blockly');
 goog.require('Blockly.ContextMenuItems');
 goog.require('Blockly.geras.Renderer');
+goog.require('Blockly.InsertionMarkerManager');
 goog.require('Blockly.ShortcutItems');
 goog.require('Blockly.Xml');
 goog.require('BlocklyGames');
+goog.require('BlocklyGames.DeleteArea');
 
 
 /**
@@ -156,7 +158,44 @@ BlocklyInterface.injectBlockly = function(options) {
   }
   options['media'] = 'third-party/blockly/media/';
   options['oneBasedIndex'] = false;
+  BlocklyInterface.installDragDeleteFix_();
   BlocklyInterface.workspace = Blockly.inject('blockly', options);
+};
+
+/**
+ * Keep a dragged block when its body is on the workspace.
+ * Installed once, for every game that embeds Blockly.
+ * @private
+ */
+BlocklyInterface.installDragDeleteFix_ = function() {
+  const proto = Blockly.InsertionMarkerManager.prototype;
+  if (proto.thinkaDragDeleteInstalled_) {
+    return;
+  }
+  proto.thinkaDragDeleteInstalled_ = true;
+  const original = proto.shouldDelete_;
+  proto.shouldDelete_ = function(candidate, dragTarget) {
+    // Pointer-based delete areas eat a block that is already on the canvas.
+    // Only honour the area when the block itself is over it. Connection
+    // snapping still wins, via the original check, when the center is inside.
+    //
+    // DOM coordinates are read with quoted names, and the hit test goes
+    // through Rect.contains. Advanced compilation renames Blockly fields,
+    // and a DOMRect's left/top would no longer match those names.
+    if (dragTarget && this.topBlock_ && dragTarget.getClientRect) {
+      const rect = dragTarget.getClientRect();
+      const svg = this.topBlock_.getSvgRoot && this.topBlock_.getSvgRoot();
+      if (rect && svg && rect.contains) {
+        const box = svg.getBoundingClientRect();
+        if (BlocklyGames.DeleteArea.centerOutside(
+            box['left'], box['right'], box['top'], box['bottom'],
+            rect.contains.bind(rect))) {
+          return false;
+        }
+      }
+    }
+    return original.call(this, candidate, dragTarget);
+  };
 };
 
 /**
