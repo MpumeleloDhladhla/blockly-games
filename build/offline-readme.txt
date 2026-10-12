@@ -27,6 +27,22 @@ How to play
 3. Teacher password (default: thinka) unlocks a locked level. Progress
    and unlocks are stored in that browser’s localStorage only.
 
+Arcade (mouse and keyboard skills)
+----------------------------------
+
+Arcade is the free-play game: five zones of four levels each, training
+mouse aim, drag and drop, and keyboard speed. Every level gives a score,
+so a class can compete.
+
+- Every Arcade level is unlocked, so the whole class can play the same
+  one. The other games still use the sequential locks.
+- Ask each child to tap “Playing as” and type their name before playing.
+  Scores are filed under that name.
+- “Champions” shows the top five per level plus an overall ranking.
+- The scoreboard lives on that one computer, in the browser. It is not
+  shared between machines, and the hub’s “Clear data” button erases it
+  along with all other progress.
+
 What is not included
 --------------------
 

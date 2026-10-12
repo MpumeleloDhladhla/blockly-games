@@ -6,11 +6,24 @@
 'use strict';
 
 (function() {
-  var APPS = ['keys', 'puzzle', 'maze', 'bird', 'turtle', 'movie', 'music',
-              'pond-tutor', 'pond-duck'];
-  var START_ORDER = ['maze', 'keys', 'puzzle', 'bird', 'turtle', 'movie', 'music',
-                     'pond-tutor', 'pond-duck'];
+  var APPS = ['race', 'arcade', 'reboot', 'keys', 'puzzle', 'maze', 'bird', 'turtle',
+              'movie', 'music', 'pond-tutor', 'pond-duck'];
+  var START_ORDER = ['maze', 'arcade', 'keys', 'reboot', 'puzzle', 'bird',
+                     'turtle', 'movie', 'music', 'pond-tutor', 'pond-duck'];
   var MAX_LEVEL = 10;
+  // Arcade keeps the class leaderboard and the current player outside the
+  // per-level keys, so "Clear data" has to remove them by name.
+  var ARCADE_EXTRA_KEYS = ['arcade_scores', 'arcade_player'];
+  // Reboot does the same with the ending the student chose and the part
+  // they reached.
+  var REBOOT_EXTRA_KEYS = ['reboot_ending', 'reboot_part', 'reboot_name'];
+  var ARCADE_STORAGE = [
+    {name: 'arcade_pop', levels: 4},
+    {name: 'arcade_drag', levels: 4},
+    {name: 'arcade_catch', levels: 4},
+    {name: 'arcade_zap', levels: 4},
+    {name: 'arcade_combo', levels: 4}
+  ];
   var KEYS_STORAGE = [
     {name: 'keys_lessons', levels: 8},
     {name: 'keys_race', levels: 5},
@@ -76,11 +89,22 @@
     if (app === 'puzzle') {
       return [{name: app, levels: 1}];
     }
+    // Reboot records one key per act across its two parts, so a student who
+    // stops halfway still sees how far they got.
+    if (app === 'reboot') {
+      return [{name: app, levels: 10}];
+    }
     if (app === 'maze') {
       return MAZE_STORAGE;
     }
     if (app === 'keys') {
       return KEYS_STORAGE;
+    }
+    if (app === 'arcade') {
+      return ARCADE_STORAGE;
+    }
+    if (app === 'race') {
+      return [{name: 'race', levels: 0}];
     }
     return [{name: app, levels: MAX_LEVEL}];
   }
@@ -282,7 +306,8 @@
         }
       }
       if (label) {
-        label.textContent = done ? (done + ' / ' + denom) : 'New';
+        label.textContent = app === 'race' ? 'Live' :
+            (done ? (done + ' / ' + denom) : 'New');
       }
       if (card) {
         card.href = withLang(card.getAttribute('href') || (app + '.html'));
@@ -329,6 +354,10 @@
           }
           delete window.localStorage[names[n].name + '_explained'];
         }
+      }
+      var extras = ARCADE_EXTRA_KEYS.concat(REBOOT_EXTRA_KEYS);
+      for (var k = 0; k < extras.length; k++) {
+        delete window.localStorage[extras[k]];
       }
     } catch (e) {
       // Ignore quota / SecurityError.

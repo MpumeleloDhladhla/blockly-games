@@ -14,6 +14,8 @@
 	"Games.pondTutor": "Pond Tutor",
 	"Games.pond": "Pond",
 	"Games.keys": "Keys",
+	"Games.arcade": "Arcade",
+	"Games.reboot": "Reboot",
 	"Games.linesOfCode1": "You solved this level with 1 line of JavaScript:",
 	"Games.linesOfCode2": "You solved this level with %1 lines of JavaScript:",
 	"Games.nextLevel": "Are you ready for level %1?",

@@ -39,6 +39,14 @@
     "desc": "title - Specifies that this is Thinka's '''Keys''' typing game.",
     "msg": "Keys"
   },
+  "Games.arcade": {
+    "desc": "title - Specifies that this is Thinka's '''Arcade''' mouse and keyboard skills game.",
+    "msg": "Arcade"
+  },
+  "Games.reboot": {
+    "desc": "title - Specifies that this is Thinka's '''Reboot''' story game about switching off a talkative building computer.",
+    "msg": "Reboot"
+  },
   "Games.linesOfCode1": {
     "desc": "alert - Displayed when a level is complete.",
     "msg": "You solved this level with 1 line of JavaScript:"

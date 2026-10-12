@@ -48,7 +48,10 @@ pond-duck: common
 keys: common
 	python3 build/compress.py keys
 
-games: index puzzle maze bird turtle movie music pond-tutor pond-duck keys
+arcade: common
+	python3 build/compress.py arcade
+
+games: index puzzle maze bird turtle movie music pond-tutor pond-duck keys arcade
 
 common:
 	@# Remove ignored output left by pre-offline builds of the deleted gallery.
@@ -65,6 +68,9 @@ test:
 	node build/test_thinka_theme.js
 	node build/test_maze_levels.js
 	node build/test_keys.js
+	node build/test_arcade.js
+	node build/test_reboot.js
+	python3 build/test_race.py
 
 deps:
 	$(foreach bin,$(REQUIRED_BINS),\
@@ -151,7 +157,7 @@ offline: clean-offline
 clean: clean-games clean-offline clean-deps
 
 clean-games:
-	rm -rf appengine/{.,index,puzzle,maze,bird,turtle,movie,music,pond,pond/tutor,pond/duck,keys}/generated
+	rm -rf appengine/{.,index,puzzle,maze,bird,turtle,movie,music,pond,pond/tutor,pond/duck,keys,arcade}/generated
 
 clean-offline:
 	rm -rf offline/

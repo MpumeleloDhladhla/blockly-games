@@ -116,9 +116,9 @@ test('hub HTML is standalone and never loads compressed.js', () => {
 
 test('hub ships local illustrated art for every game', () => {
   const dir = path.join(ROOT, 'appengine', 'index', 'art');
-  for (const name of ['keys.svg', 'puzzle.svg', 'maze.svg', 'bird.svg',
-                     'turtle.svg', 'movie.svg', 'music.svg', 'pond-tutor.svg',
-                     'pond-duck.svg']) {
+  for (const name of ['arcade.svg', 'keys.svg', 'puzzle.svg', 'maze.svg',
+                     'bird.svg', 'turtle.svg', 'movie.svg', 'music.svg',
+                     'pond-tutor.svg', 'pond-duck.svg']) {
     const full = path.join(dir, name);
     assert.strictEqual(fs.existsSync(full), true, name);
     const svg = fs.readFileSync(full, 'utf8');
@@ -145,6 +145,16 @@ test('runtime CSS/HTML do not require a CDN', () => {
     }
   }
   assert.deepStrictEqual(hits, []);
+});
+
+test('congratulations JS snippet stays on light paper', () => {
+  const css = read('appengine/common/common.css');
+  const block = css.match(/#containerCode \{[^}]+\}/);
+  assert.ok(block, '#containerCode rule missing');
+  assert.match(block[0], /background-color:\s*var\(--thinka-paper\)/);
+  assert.match(block[0], /color:\s*var\(--thinka-ink\)/);
+  assert.doesNotMatch(block[0], /--thinka-page/);
+  assert.match(css, /#containerCode \.kwd \{/);
 });
 
 test('teacher unlock dialog ids are unchanged', () => {

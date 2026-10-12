@@ -63,6 +63,14 @@ BlocklyDialogs.dialogMouseUpWrapper_ = null;
 BlocklyDialogs.dialogMouseMoveWrapper_ = null;
 
 /**
+ * Tip dialog ids the player dismissed with the X button this session.
+ * Keeps levelHelp from popping the same tip straight back up.
+ * @type {!Object<string, boolean>}
+ * @private
+ */
+BlocklyDialogs.dismissedTipIds_ = Object.create(null);
+
+/**
  * Show the dialog pop-up.
  * @param {Element} content DOM element to display in the dialog.
  * @param {Element} origin Animate the dialog opening/closing from/to this
@@ -81,6 +89,10 @@ BlocklyDialogs.showDialog = function(content, origin, animate, modal, style,
   // Do not let help / abort dialogs replace the password prompt.
   if (BlocklyGames.awaitingTeacherUnlock &&
       content.id !== 'dialogTeacherUnlock') {
+    return;
+  }
+  // Non-modal tips stay gone once the player hits the X.
+  if (!modal && content.id && BlocklyDialogs.dismissedTipIds_[content.id]) {
     return;
   }
   const buttons = content.getElementsByClassName('addHideHandler');
@@ -118,6 +130,8 @@ BlocklyDialogs.showDialog = function(content, origin, animate, modal, style,
     BlocklyDialogs.dialogMouseDownWrapper_ =
         Blockly.browserEvents.bind(header, 'mousedown', null,
                            BlocklyDialogs.dialogMouseDown_);
+  } else {
+    BlocklyDialogs.ensureTipCloseButton_(dialog, content);
   }
   dialog.appendChild(content);
   content.classList.remove('dialogHiddenContent');
@@ -157,6 +171,43 @@ BlocklyDialogs.showDialog = function(content, origin, animate, modal, style,
     // No animation.  Just set the final state.
     endResult();
   }
+};
+
+/**
+ * Add (or reuse) the X that dismisses a floating help tip.
+ * @param {!Element} dialog The dialog shell.
+ * @param {!Element} content Tip content element (for its id).
+ * @private
+ */
+BlocklyDialogs.ensureTipCloseButton_ = function(dialog, content) {
+  let close = BlocklyGames.getElementById('dialogTipClose');
+  if (close && close.parentNode) {
+    close.parentNode.removeChild(close);
+  }
+  close = document.createElement('button');
+  close.id = 'dialogTipClose';
+  close.type = 'button';
+  close.className = 'dialogTipClose';
+  close.setAttribute('aria-label', 'Close');
+  close.title = 'Close';
+  close.textContent = '\u00D7';
+  close.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (content.id) {
+      BlocklyDialogs.dismissedTipIds_[content.id] = true;
+    }
+    BlocklyDialogs.hideDialog(false);
+  }, true);
+  close.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (content.id) {
+      BlocklyDialogs.dismissedTipIds_[content.id] = true;
+    }
+    BlocklyDialogs.hideDialog(false);
+  }, true);
+  dialog.appendChild(close);
 };
 
 /**
@@ -267,6 +318,10 @@ BlocklyDialogs.hideDialog = function(opt_animate = true) {
   }
   dialog.style.visibility = 'hidden';
   dialog.style.zIndex = -1;
+  const tipClose = BlocklyGames.getElementById('dialogTipClose');
+  if (tipClose) {
+    tipClose.parentNode && tipClose.parentNode.removeChild(tipClose);
+  }
   const header = BlocklyGames.getElementById('dialogHeader');
   if (header) {
     header.parentNode.removeChild(header);

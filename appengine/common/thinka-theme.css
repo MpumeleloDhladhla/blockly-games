@@ -52,7 +52,7 @@
   --thinka-orange: #FF4500;
   --thinka-orange-hot: #FF5A1F;
   --thinka-orange-deep: #E03A00;
-  --thinka-orange-soft: rgba(255, 69, 0, 0.18);
+  --thinka-orange-soft: rgba(255, 69, 0, 0.1);
   --thinka-page: #030A03;
   --thinka-surface: #0A140A;
   --thinka-panel: #121F12;
@@ -91,8 +91,8 @@
   --thinka-radius: 22px;
   --thinka-radius-sm: 14px;
   --thinka-radius-pill: 999px;
-  --thinka-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
-  --thinka-shadow-hover: 0 0 28px rgba(255, 69, 0, 0.42);
+  --thinka-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  --thinka-shadow-hover: 0 12px 28px rgba(0, 0, 0, 0.34);
   --thinka-display: "Thinka Fredoka", "Gill Sans", "Trebuchet MS",
       "Segoe UI", ui-rounded, sans-serif;
   --thinka-font: "Thinka Nunito", "Segoe UI", Ubuntu, "Avenir Next",

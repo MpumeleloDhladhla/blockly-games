@@ -69,13 +69,11 @@ body.keys-app {
   min-height: 16em;
   padding: 1.15em 1.1em 1em;
   border-radius: 28px;
-  background:
-    radial-gradient(ellipse at 50% -10%, rgba(var(--tile-rgb), 0.38), transparent 52%),
-    var(--thinka-surface);
-  border: 2px solid rgba(var(--tile-rgb), 0.32);
+  background: var(--thinka-surface);
+  border: 2px solid rgba(var(--tile-rgb), 0.26);
   color: var(--thinka-text);
   text-decoration: none;
-  box-shadow: var(--thinka-shadow);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.26);
   transition: transform 0.16s ease, border-color 0.16s ease;
 }
 
@@ -85,7 +83,7 @@ body.keys-app {
 
 .keys-mode-card:focus,
 .keys-mode-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-4px);
   border-color: var(--tile);
   color: var(--thinka-text);
 }
@@ -110,6 +108,8 @@ body.keys-app {
 .keys-mode-blurb {
   color: var(--thinka-text);
   min-height: 3em;
+  font-size: 1.05rem;
+  line-height: 1.45;
 }
 
 .keys-mode-progress {
@@ -142,7 +142,6 @@ body.keys-app {
   color: var(--thinka-text-strong);
   font-family: var(--thinka-display);
   font-weight: 700;
-  box-shadow: 0 0 16px rgba(255, 69, 0, 0.35);
 }
 
 .keys-meta {
@@ -280,7 +279,7 @@ body.keys-app {
   background: var(--thinka-orange);
   border-radius: 6px;
   padding: 0 0.08em;
-  box-shadow: 0 0 16px rgba(255, 69, 0, 0.45);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
 }
 
 .keys-ch--caret.is-miss {
@@ -391,7 +390,7 @@ body.keys-app {
   background: var(--thinka-orange);
   color: var(--thinka-text-strong);
   border-color: #FFB199;
-  box-shadow: 0 0 16px rgba(255, 69, 0, 0.45);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
   transform: translateY(-1px);
 }
 
@@ -423,7 +422,7 @@ body.keys-app {
   border-radius: 28px;
   background: var(--thinka-surface);
   border: 2px solid rgba(255, 69, 0, 0.4);
-  box-shadow: 0 0 40px rgba(255, 69, 0, 0.2);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
   color: var(--thinka-text);
 }
 

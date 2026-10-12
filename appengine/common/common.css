@@ -76,6 +76,42 @@ html[dir="RTL"] .farSide {
   letter-spacing: -0.02em;
 }
 
+/*
+ * Short screens — 11.6" HD (1366x768) and Chromebooks with chrome
+ * (commonly 610-720px usable). Shrinking the header keeps Run on-screen.
+ */
+@media (max-height: 800px) {
+  .thinka-header {
+    margin-bottom: 6px;
+    padding: 4px 14px 5px;
+    box-shadow: 0 5px 16px rgba(0, 0, 0, 0.18);
+  }
+  .thinka-header h1 {
+    margin: 0.18em 0;
+    font-size: 118%;
+  }
+  .thinka-levels {
+    transform: scale(0.92);
+    transform-origin: left center;
+  }
+}
+
+@media (max-height: 700px) {
+  .thinka-header {
+    margin-bottom: 4px;
+    padding: 3px 14px 4px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  }
+  .thinka-header h1 {
+    margin: 0.12em 0;
+    font-size: 112%;
+  }
+  .thinka-levels {
+    transform: scale(0.88);
+    transform-origin: left center;
+  }
+}
+
 .thinka-header-sep {
   display: inline-block;
   width: 7px;
@@ -84,7 +120,7 @@ html[dir="RTL"] .farSide {
   background: var(--thinka-orange);
   border-radius: 50%;
   vertical-align: middle;
-  box-shadow: 0 0 10px var(--thinka-orange);
+  box-shadow: none;
 }
 
 .thinka-app-name {
@@ -139,7 +175,7 @@ html[dir="RTL"] .farSide {
   background-color: var(--thinka-orange);
   border-color: #FFB199;
   color: var(--thinka-text-strong);
-  box-shadow: 0 0 0 3px rgba(255, 69, 0, 0.28);
+  box-shadow: none;
 }
 
 .thinka-header .level_number.level_done {
@@ -192,7 +228,7 @@ html[dir="RTL"] .farSide {
   color: #fc3;
 }
 .mazeStarCaption {
-  color: #666;
+  color: var(--thinka-muted);
 }
 a.level_locked:hover,
 span.level_locked:hover {
@@ -232,7 +268,7 @@ span.level_locked:hover {
   margin: 0.4em auto 0;
   border-radius: 50%;
   background: var(--thinka-orange);
-  box-shadow: 0 0 18px rgba(255, 69, 0, 0.45);
+  box-shadow: none;
   position: relative;
 }
 
@@ -276,10 +312,11 @@ span.level_locked:hover {
   color: var(--thinka-muted);
 }
 
+/* Light paper: prettify.js paints dark token colors meant for a light surface. */
 #containerCode {
   direction: ltr;
-  background-color: var(--thinka-page);
-  color: var(--thinka-text);
+  background-color: var(--thinka-paper);
+  color: var(--thinka-ink);
   padding: 12px 14px;
   margin: 0 3ex;
   font-size: large;
@@ -287,7 +324,34 @@ span.level_locked:hover {
   overflow: auto;
   max-height: 200px;
   border-radius: var(--thinka-radius-sm);
-  border: 2px solid var(--thinka-panel);
+  border: 2px solid var(--thinka-line);
+}
+
+#containerCode .pln {
+  color: var(--thinka-ink);
+}
+#containerCode .str {
+  color: #047857;
+}
+#containerCode .kwd {
+  color: #1d4ed8;
+}
+#containerCode .com {
+  color: #b45309;
+}
+#containerCode .typ {
+  color: #6d28d9;
+}
+#containerCode .lit {
+  color: #0f766e;
+}
+#containerCode .pun,
+#containerCode .opn,
+#containerCode .clo {
+  color: #9333ea;
+}
+#containerCode .fun {
+  color: var(--thinka-orange-deep);
 }
 
 img[src$="help.png"] {
@@ -326,7 +390,7 @@ xml {
   display: none;
 }
 
-/* Buttons — orange glow pills like thinka.org.za CTAs. */
+/* Buttons — solid pills; no coloured glow so text stays easy to read. */
 button {
   margin: 5px;
   padding: 10px 20px;
@@ -345,7 +409,7 @@ button.primary {
   border: 0;
   background-color: var(--thinka-orange);
   color: var(--thinka-text-strong);
-  box-shadow: 0 0 22px rgba(255, 69, 0, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
 }
 
 button.secondary {
@@ -406,6 +470,44 @@ button:disabled {
   padding: 12px 14px 16px;
 }
 
+#dialog:has(.dialogTipClose) {
+  padding-right: 2.4em;
+}
+
+/* Floating help tip dismiss control. */
+.dialogTipClose {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+  margin: 0;
+  min-width: 0;
+  width: 1.75em;
+  height: 1.75em;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(248, 250, 252, 0.12);
+  color: var(--thinka-text-strong);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.dialogTipClose:hover:not(:disabled),
+.dialogTipClose:focus-visible {
+  background: var(--thinka-orange);
+  color: var(--thinka-text-strong);
+  box-shadow: none;
+  transform: none;
+}
+
+html[dir="RTL"] .dialogTipClose {
+  right: auto;
+  left: 4px;
+}
+
 #dialogBorder {
   visibility: hidden;
   position: absolute;
@@ -446,7 +548,7 @@ button:disabled {
   margin: -12px -14px 16px;
   border-top-left-radius: 21px;
   border-top-right-radius: 21px;
-  background: linear-gradient(90deg, var(--thinka-page) 0%, var(--thinka-surface) 60%, var(--thinka-orange) 100%);
+  background: linear-gradient(90deg, var(--thinka-page) 0%, var(--thinka-surface) 85%, rgba(255, 69, 0, 0.35) 100%);
   cursor: move;
 }
 

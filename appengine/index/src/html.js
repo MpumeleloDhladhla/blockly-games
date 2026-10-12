@@ -54,6 +54,8 @@ Index.html.start = function(ij) {
 
   <h2 class="thinka-shelf-title">All games</h2>
   <main class="thinka-grid" id="thinkaGames">
+    ${Index.html.appLink_(ij, 'arcade', 'Games.arcade', 'Aim, drag and type. Beat the high score.')}
+    ${Index.html.appLink_(ij, 'reboot', 'Games.reboot', 'Two parts. Wake two old computers up.')}
     ${Index.html.appLink_(ij, 'keys', 'Games.keys', 'Type to learn. Race. Then code words.')}
     ${Index.html.appLink_(ij, 'puzzle', 'Games.puzzle', 'Snap the pieces. That is coding!')}
     ${Index.html.appLink_(ij, 'maze', 'Games.maze', 'Find the path. Loops are magic.')}

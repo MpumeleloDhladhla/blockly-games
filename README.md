@@ -1,6 +1,6 @@
 # Thinka Blockly Games (offline-first)
 
-Thinka’s classroom fork of [Google Blockly Games](https://github.com/google/blockly-games) for [Thinka.org.za](https://thinka.org.za). It teaches programming with Maze, Bird, Turtle, Movie, Music, Pond, Puzzle, and the Keys typing game (lessons, race, and code words).
+Thinka’s classroom fork of [Google Blockly Games](https://github.com/google/blockly-games) for [Thinka.org.za](https://thinka.org.za). It teaches programming with Maze, Bird, Turtle, Movie, Music, Pond, Puzzle, the Keys typing game (lessons, race, and code words), and the Arcade skills game (mouse and keyboard practice with class high scores).
 
 This product is **offline-first**. After a build, the games run from a local folder or ZIP. There is no App Engine backend, no gallery, and no runtime network.
 
@@ -40,6 +40,15 @@ make offline   # write offline/thinka-blockly-games.zip
 
 `make deps` needs internet. Playing the built games does not.
 
+### Try Race (classroom WiFi)
+
+Race is a 30 second typing race for the class. It needs this server, because the teacher laptop is the host. `python3 -m http.server` can show the page, but students cannot join.
+
+1. Open `http://127.0.0.1:8088/race.html` on the teacher laptop and choose **Host the class**.
+2. Read the address on that screen aloud. Students on the same WiFi open it and join with a name.
+3. Pick a computer speed and press **Start**. The sentence changes on its own during the 30 seconds, and everyone gets the new line at the same time. The track stays on screen while everyone types. If fewer than four students join, computer racers fill the rest. They share a difficulty, and each one is a different speed. Correct letters move the car. Five in a row counts double. Ten in a row earns a shield. Three wrong letters in a row knock the car back.
+4. At 30 seconds the teacher screen shows the top 3. **New race** starts fresh.
+
 ### Try Keys (typing game)
 
 After `make games` (or just `make keys` once `common` has been built):
@@ -50,6 +59,44 @@ After `make games` (or just `make keys` once `common` has been built):
 4. **Code** — 6 levels typing `if`, `else`, `while`, `function`, `print`, and `{ }`.
 
 Progress is stored as `keys_lessonsN`, `keys_raceN`, and `keys_codeN` in `localStorage`.
+
+### Try Arcade (mouse and keyboard skills)
+
+Arcade is the free-play game: pure scoring, no locks, so a whole class can compete on the same level.
+
+1. Open `http://127.0.0.1:8088/` and click the **Arcade** tile.
+2. Tap **Playing as** and type a name. Scores are filed under that name.
+3. Five zones, four levels each: **Pop** (click the bubbles, dodge the bombs), **Drag** (drop shapes on their outlines), **Catch** (arrow keys, catch the stars), **Zap** (press the key that lights up), and **Combo** (click the target, then press its letter).
+4. **Champions** in the header shows the top five per level plus the overall ranking.
+
+Scoring is the same everywhere: a hit is 100 points plus a streak bonus, a miss costs 40, and finishing early pays a time bonus. Two stars at the level's par score, three at its target.
+
+Progress is stored as `arcade_popN`, `arcade_dragN`, `arcade_catchN`, `arcade_zapN`, and `arcade_comboN`. The leaderboard lives in `arcade_scores` and the current player in `arcade_player`; the hub's **Clear data** button removes all of them.
+
+### Reboot
+
+Reboot is a story game in two parts, about 50 minutes end to end. The player is the computer helper sent to switch off PATCH, a chatty 1990s building computer that would rather stay awake.
+
+**Part 1 (acts 1-4, about 20 minutes)** escalates from friendly clicking to a keyboard-only emergency: mouse precision, dragging, typing, and the special keys `Tab`, `Shift+Tab`, `Esc`, `Space`, the arrow keys and `Ctrl+Enter`. It ends on a choice — erase PATCH, or copy it to a safe drive first — followed by a celebration and a report card.
+
+**Part 2 (acts 5-10, about 30 minutes)** unlocks at the bottom of that celebration, when a second machine wakes up in the basement. NANA has been asleep since 1984 and wants to know where PATCH is; what it hears back depends on the choice upstairs, and a few lines change accordingly. The six acts drill the next layer of skills:
+
+1. **Who turned this on?** double-click into folders, breadcrumbs, `Shift+click` ranges, `Ctrl+click` extras, renaming.
+2. **Make a backup** `Ctrl+A`, `Ctrl+C`, `Ctrl+V`, `Ctrl+Z` and `Ctrl+S`, with a visible clipboard tray.
+3. **The old manual** scrolling by wheel, scrollbar and `Page Down` / `End`, then a find box.
+4. **The keypad** serial numbers, dates, times and a symbol password (`Shift` for symbols).
+5. **Fix the message** repairing text in place with `Home`, `End`, the arrows, `Backspace` and `Delete`.
+6. **Both machines** everything at once, finishing on a three-key combo.
+
+**Easy or hard** is the first question the game asks, before anything starts. On **easy** a student can retry forever, each attempt comes with a tip and a slightly longer timer, and nothing is ever lost. On **hard** they get **three lives**, shown as hearts in the top bar, and timers stay fixed. Every failed job costs a life; lose all three and the whole act restarts from its title card with the lives refilled. The replayed dialogue runs at speed, since they have already read it.
+
+**Finishing all ten acts earns a certificate.** The game asks for the player's name and prints an award — "completed PROJECT REBOOT" with their time, typing accuracy and the difficulty they played — styled for paper, so **Print it** produces a clean black-on-white certificate for the classroom wall. The name is kept in `reboot_name` for reprints.
+
+Key chips adapt to the machine: Windows and Chromebooks are told `CTRL`, Apple hardware `CMD`. Both modifiers are accepted either way.
+
+Unlike the other games, `appengine/reboot.html` is one self-contained file — markup, styles, logic and synthesised audio — with no build step and no Closure pass. Edit it directly; `make games` does not touch it, and `node build/test_reboot.js` guards its structure.
+
+Each finished act writes `reboot1` through `reboot10`, so the hub card fills up gradually and a student who stops halfway keeps their place. Once acts 1-4 are recorded the title screen offers **Continue Part 2**, which is how a second lesson picks up where the first left off. The chosen ending lives in `reboot_ending`, the furthest part in `reboot_part`, and the certificate name in `reboot_name`; **Clear data** removes all of them.
 
 The `appengine/` folder is the static web root (legacy name from upstream). It is not an App Engine app.
 

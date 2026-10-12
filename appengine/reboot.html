@@ -1,0 +1,4286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROJECT REBOOT // P.A.T.C.H. OS v2.7</title>
+<!--
+  PROJECT REBOOT  (Thinka hub card: "Reboot")
+  A 12-15 minute single-file digital-literacy game for primary school players.
+  Plain, short English throughout: the skills are the challenge, not the reading.
+
+  Skills exercised:
+    * Mouse precision & speed  (targets, drifting leaks, drag & drop, popup swatting)
+    * Typing fluency           (terminal commands, transcription, timed phrases, gauntlet)
+    * Special keys             (Tab / Shift+Tab, Escape, Ctrl+Enter, Ctrl+Shift+Enter,
+                                Arrow keys, Spacebar)
+
+  Everything (markup, styles, logic, audio) lives in this file. No network access
+  required, safe to embed in an iframe / webview.
+-->
+<style>
+/* ============================================================== *
+ *  1. THEME TOKENS + CRT SHELL
+ * ============================================================== */
+:root{
+  --bg:        #070a07;
+  --panel:     rgba(18, 38, 18, 0.35);
+  --green:     #33ff33;
+  --green-mid: #1faa1f;
+  --green-dim: #14501a;
+  --amber:     #ffb000;
+  --red:       #ff4d4d;
+  --font: "Courier New", Consolas, "DejaVu Sans Mono", monospace;
+}
+
+*{ box-sizing: border-box; }
+
+html, body{
+  height: 100%;
+  margin: 0;
+  background: #030503;
+  color: var(--green);
+  font-family: var(--font);
+  font-size: clamp(14px, 0.75vw + 1.05vh, 22px);
+  overflow: hidden;
+  /* Text selection would fight with fast clicking / dragging. */
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: crosshair;
+}
+
+/* The whole machine. */
+#crt{
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;      /* the rolling bar animates past the bottom edge */
+  padding: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background:
+    radial-gradient(ellipse at 50% 40%, #0e1c0e 0%, #060906 65%, #020302 100%);
+}
+
+/* Scanline + vignette overlay. Purely decorative, never eats clicks. */
+#scanlines{
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg,
+      rgba(0,0,0,0.38) 0px, rgba(0,0,0,0.38) 1px,
+      rgba(0,0,0,0.00) 1px, rgba(0,0,0,0.00) 3px),
+    radial-gradient(ellipse at center,
+      rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%);
+}
+/* A slow bright band rolling down the tube. */
+#rollbar{
+  position: absolute;
+  left: 0; right: 0;
+  height: 14%;
+  z-index: 81;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(51,255,51,0) 0%, rgba(51,255,51,0.045) 50%, rgba(51,255,51,0) 100%);
+  animation: roll 7s linear infinite;
+}
+@keyframes roll{ from{ top:-15%; } to{ top:100%; } }
+
+/* Instability effects toggled by the engine as the story escalates. */
+#crt.shake     { animation: shake 0.28s linear infinite; }
+#crt.shake-hard{ animation: shake 0.16s linear infinite; }
+@keyframes shake{
+  0%   { transform: translate(0,0); }
+  25%  { transform: translate(-2px, 1px); }
+  50%  { transform: translate(2px, -1px); }
+  75%  { transform: translate(-1px, -2px); }
+  100% { transform: translate(0,0); }
+}
+#crt.degraded #scanlines{ opacity: 1; filter: contrast(1.3); }
+#crt.no-mouse, #crt.no-mouse *{ cursor: none !important; }
+
+/* ============================================================== *
+ *  2. HUD (top bar)
+ * ============================================================== */
+#hud{
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
+  gap: 0.8rem;
+  font-size: 0.95em;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--green-dim);
+  background: var(--panel);
+  white-space: nowrap;
+}
+#hud .brand{ color: var(--green); letter-spacing: 0.08em; }
+#hud .sep{ color: var(--green-dim); }
+#actLabel{ color: var(--amber); letter-spacing: 0.1em; }
+#clock{ color: var(--green-mid); }
+.meter{
+  flex: 1;
+  min-width: 60px;
+  height: 0.85rem;
+  border: 1px solid var(--green-dim);
+  background: rgba(0,0,0,0.5);
+  position: relative;
+  overflow: hidden;
+}
+.meter > i{
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--green-mid);
+  transition: width 0.25s linear, background 0.25s linear;
+}
+.meter.warn > i{ background: var(--amber); }
+.meter.crit > i{ background: var(--red); }
+.label{ color: var(--green-dim); letter-spacing: 0.08em; }
+
+/* ============================================================== *
+ *  3. MAIN LAYOUT: dialogue side panel + task stage
+ * ============================================================== */
+#body{
+  flex: 1;
+  display: flex;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+#side{
+  width: 27%;
+  min-width: 190px;
+  max-width: 340px;
+  border: 1px solid var(--green-dim);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#face{
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--green-dim);
+  text-align: center;
+  line-height: 1.15;
+  white-space: pre;
+  color: var(--green);
+  font-size: 1.15em;
+}
+#face.mad{ color: var(--amber); }
+#face.critical{ color: var(--red); animation: blink 0.6s steps(2) infinite; }
+@keyframes blink{ 50%{ opacity: 0.35; } }
+
+#log{
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+  line-height: 1.6;
+  font-size: 1.02em;
+  scrollbar-width: thin;
+}
+#log .line{ margin-bottom: 0.5rem; word-wrap: break-word; }
+#log .who{ color: var(--green-dim); }
+#log .patch .who{ color: var(--amber); }
+#log .patch{ color: #cfe8cf; }
+#log .nana .who{ color: var(--green); }
+#log .nana{ color: #e6f6e6; }
+#log .sys{ color: var(--green-mid); }
+#log .warn{ color: var(--red); }
+
+#stageWrap{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Task header: objective + countdown */
+#taskbar{
+  border: 1px solid var(--green-dim);
+  background: var(--panel);
+  padding: 0.35rem 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+#taskTitle{ color: var(--green); letter-spacing: 0.06em; }
+#timerText{ color: var(--green-mid); min-width: 3.6em; text-align: right; }
+
+/* The stage is where every micro-task builds its own UI. */
+#stage{
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--green-dim);
+  background:
+    linear-gradient(rgba(51,255,51,0.03), rgba(51,255,51,0.03)),
+    repeating-linear-gradient(90deg,
+      rgba(51,255,51,0.04) 0 1px, transparent 1px 42px),
+    repeating-linear-gradient(0deg,
+      rgba(51,255,51,0.04) 0 1px, transparent 1px 42px);
+}
+
+/* Persistent key-hint strip under the stage. */
+#hint{
+  border: 1px solid var(--green-dim);
+  background: var(--panel);
+  padding: 0.4rem 0.6rem;
+  font-size: 1.05em;
+  color: var(--green-mid);
+  min-height: 1.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+kbd{
+  display: inline-block;
+  padding: 0.08rem 0.45rem;
+  border: 1px solid var(--green);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  color: var(--green);
+  background: rgba(51,255,51,0.08);
+  font-family: inherit;
+  font-size: 0.95em;
+}
+kbd.hot{ border-color: var(--amber); color: var(--amber); background: rgba(255,176,0,0.1); }
+
+/* Footer: act pips + progress */
+#foot{
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
+  gap: 0.7rem;
+  font-size: 0.9em;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--green-dim);
+  background: var(--panel);
+  color: var(--green-dim);
+  white-space: nowrap;
+}
+#pips{ display: flex; gap: 0.25rem; flex-wrap: nowrap; }
+#pips i{
+  width: 0.75rem; height: 0.55rem;
+  border: 1px solid var(--green-dim);
+  display: inline-block;
+}
+#lives{ color: var(--red); letter-spacing: 0.12em; white-space: nowrap; }
+#lives .spent{ color: var(--green-dim); }
+#exitLink{
+  margin-left: auto;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--green-dim);
+  color: var(--green-mid);
+  text-decoration: none;
+}
+#exitLink:hover{ background: var(--green-mid); color: #061006; }
+#pips i.done{ background: var(--green-mid); border-color: var(--green-mid); }
+#pips i.now { background: var(--amber);     border-color: var(--amber); animation: blink 1s steps(2) infinite; }
+
+/* ============================================================== *
+ *  4. SHARED WIDGETS USED BY TASKS
+ * ============================================================== */
+.btn{
+  display: inline-block;
+  text-decoration: none;
+  font-family: inherit;
+  font-size: 1em;
+  color: var(--green);
+  background: rgba(51,255,51,0.06);
+  border: 1px solid var(--green);
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+}
+.btn:hover{ background: var(--green); color: #061006; }
+.btn.big{ font-size: 1.3em; padding: 0.7rem 1.6rem; }
+.btn.danger{ color: var(--red); border-color: var(--red); background: rgba(255,77,77,0.08); }
+.btn.danger:hover{ background: var(--red); color: #100; }
+
+/* Centered helper box inside the stage. */
+.center{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1rem;
+  text-align: center;
+}
+.readout{ color: var(--green-mid); line-height: 1.65; font-size: 1.05em; max-width: 46ch; }
+
+/* --- mouse targets (icon calibration, memory leaks, processes) --- */
+.target{
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--green);
+  color: var(--green);
+  background: rgba(51,255,51,0.1);
+  cursor: pointer;
+}
+.target:hover{ background: rgba(51,255,51,0.28); }
+.target.leak{
+  border-radius: 50%;
+  border-color: var(--amber);
+  color: var(--amber);
+  background: rgba(255,176,0,0.12);
+}
+.target.proc{
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(255,77,77,0.14);
+  font-size: 0.95em;
+  padding: 0 0.3rem;
+}
+.pop-in{ animation: popin 0.16s ease-out; }
+@keyframes popin{ from{ transform: scale(0.4); opacity: 0; } to{ transform: scale(1); opacity: 1; } }
+
+/* --- draggable files / defrag blocks --- */
+.file{
+  position: absolute;
+  width: 6rem;
+  padding: 0.4rem;
+  text-align: center;
+  border: 1px solid var(--green);
+  background: rgba(8,20,8,0.92);
+  color: var(--green);
+  cursor: grab;
+  font-size: 0.95em;
+  line-height: 1.3;
+  touch-action: none;
+}
+.file.dragging{ cursor: grabbing; pointer-events: none; opacity: 0.85; border-color: var(--amber); color: var(--amber); }
+.file .glyph{ font-size: 1.5em; display: block; }
+.dropzone{
+  position: absolute;
+  border: 2px dashed var(--amber);
+  color: var(--amber);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  background: rgba(255,176,0,0.06);
+  line-height: 1.4;
+}
+.dropzone.hot{ background: rgba(255,176,0,0.2); }
+
+/* --- windows / popups --- */
+.win{
+  position: absolute;
+  min-width: 11rem;
+  border: 1px solid var(--green);
+  background: #08140a;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 6px 18px rgba(0,0,0,0.55);
+}
+.win .bar{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0.45rem;
+  background: var(--green-dim);
+  color: #d9ffd9;
+  font-size: 0.95em;
+}
+.win .body{ padding: 0.6rem; font-size: 0.95em; line-height: 1.45; }
+.win .x{
+  border: 1px solid #d9ffd9;
+  padding: 0 0.3rem;
+  cursor: pointer;
+  line-height: 1.1;
+}
+.win .x:hover{ background: #d9ffd9; color: #061006; }
+.win.rogue{ border-color: var(--red); }
+.win.rogue .bar{ background: #6b1414; color: #ffdede; }
+.win.rogue .body{ color: var(--red); }
+
+/* --- modal with custom Tab focus ring --- */
+.modal{
+  position: absolute;
+  inset: 8% 6%;
+  border: 1px solid var(--amber);
+  background: #0a1408;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  overflow: auto;
+}
+.modal h3{ margin: 0; color: var(--amber); letter-spacing: 0.08em; font-size: 1.25em; }
+.modal .q{ color: #cfe8cf; line-height: 1.65; font-size: 1.1em; }
+.opt{
+  border: 1px solid var(--green-dim);
+  color: var(--green-mid);
+  font-size: 1.05em;
+  padding: 0.5rem 0.8rem;
+  background: rgba(0,0,0,0.3);
+}
+.opt.focus{
+  border-color: var(--amber);
+  color: var(--amber);
+  background: rgba(255,176,0,0.14);
+  box-shadow: 0 0 0 1px var(--amber) inset;
+}
+.opt .tag{ color: var(--green-dim); }
+.opt.focus .tag{ color: var(--amber); }
+
+/* --- typing widgets --- */
+.term{
+  width: min(100%, 60ch);
+  border: 1px solid var(--green-dim);
+  background: rgba(0,0,0,0.45);
+  padding: 0.6rem;
+  text-align: left;
+}
+.prompt{ font-size: 1.35em; letter-spacing: 0.04em; word-wrap: break-word; line-height: 1.7; }
+.prompt .ok  { color: var(--green); }
+.prompt .bad { color: var(--red); background: rgba(255,77,77,0.2); }
+.prompt .todo{ color: var(--green-dim); }
+.prompt .cursor{ border-left: 2px solid var(--amber); margin-left: -1px; animation: blink 0.8s steps(2) infinite; }
+.corrupt{ color: var(--red); font-size: 1.1em; letter-spacing: 0.06em; word-wrap: break-word; }
+input.typebox{
+  width: 100%;
+  margin-top: 0.5rem;
+  font-family: inherit;
+  font-size: 1.25em;
+  color: var(--amber);
+  background: #000;
+  border: 1px solid var(--amber);
+  padding: 0.35rem 0.5rem;
+  outline: none;
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.shakeit{ animation: shake 0.2s linear 2; }
+
+/* --- sector grid (arrow-key task) --- */
+.grid{
+  display: grid;
+  gap: 3px;
+}
+.cell{
+  width: 1.8rem; height: 1.8rem;
+  border: 1px solid var(--green-dim);
+  display: grid; place-items: center;
+  color: var(--green-dim);
+  background: rgba(0,0,0,0.35);
+  font-size: 0.9em;
+}
+.cell.bad  { color: var(--red);   border-color: var(--red);   background: rgba(255,77,77,0.12); }
+.cell.fixed{ color: var(--green); border-color: var(--green); background: rgba(51,255,51,0.16); }
+.cell.cur  { outline: 2px solid var(--amber); outline-offset: 1px; }
+
+/* --- slot row (defrag) --- */
+.slots{ display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+.slot{
+  width: 3.1rem; height: 3.1rem;
+  border: 1px dashed var(--green-dim);
+  display: grid; place-items: center;
+  position: relative;
+}
+.slot.goal{ border-color: var(--amber); border-style: solid; }
+.slot.filled.goal{ background: rgba(255,176,0,0.12); }
+/* Lit up while a block is hovering over it mid-drag. */
+.slot.hot{ border-color: var(--amber); border-style: solid; background: rgba(255,176,0,0.22); }
+.blk{
+  width: 2.7rem; height: 2.7rem;
+  display: grid; place-items: center;
+  border: 1px solid var(--green);
+  background: rgba(51,255,51,0.14);
+  color: var(--green);
+  cursor: grab;
+  font-size: 0.85em;
+  touch-action: none;
+}
+.blk.dragging,
+.fitem.dragging{
+  position: fixed;
+  z-index: 90;
+  pointer-events: none;
+  border-color: var(--amber);
+  color: var(--amber);
+  background: rgba(255,176,0,0.2);
+}
+
+/* --- misc feedback --- */
+.floaty{
+  position: absolute;
+  pointer-events: none;
+  color: var(--green);
+  animation: floaty 0.7s ease-out forwards;
+  font-size: 1.05em;
+}
+.floaty.bad{ color: var(--red); }
+@keyframes floaty{ to{ transform: translateY(-2.2rem); opacity: 0; } }
+
+.banner{
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  padding: 0.25rem;
+  text-align: center;
+  background: rgba(255,77,77,0.18);
+  border-bottom: 1px solid var(--red);
+  color: var(--red);
+  z-index: 5;
+}
+
+/* ============================================================== *
+ *  5. FULL-SCREEN OVERLAYS (boot, act cards, resets, ending)
+ * ============================================================== */
+#overlay{
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+  background: rgba(3,6,3,0.94);
+}
+#overlay.show{ display: flex; }
+#overlay > *{ flex: 0 0 auto; max-width: 100%; }
+#overlay > :first-child{ margin-top: auto; }
+#overlay > :last-child{ margin-bottom: auto; }
+#overlay h1{
+  margin: 0;
+  font-size: clamp(1.4rem, 4.5vw, 3rem);
+  letter-spacing: 0.22em;
+  color: var(--green);
+}
+#overlay h2{ margin: 0; color: var(--amber); letter-spacing: 0.18em; font-size: 1.5em; }
+#overlay p{ margin: 0; color: var(--green-mid); max-width: 52ch; line-height: 1.75; font-size: 1.1em; }
+#overlay .big-num{ font-size: 3rem; color: var(--amber); }
+.glitchy{ animation: glitchy 0.25s steps(2) infinite; }
+@keyframes glitchy{
+  0%  { text-shadow: 2px 0 var(--red), -2px 0 var(--green); }
+  100%{ text-shadow: -2px 0 var(--amber), 2px 0 var(--green-mid); }
+}
+table.stats{ border-collapse: collapse; color: var(--green-mid); font-size: 1.05em; }
+table.stats td{ border: 1px solid var(--green-dim); padding: 0.3rem 0.9rem; text-align: left; }
+table.stats td.v{ color: var(--amber); text-align: right; }
+
+/* ============================================================== *
+ *  6. PART 2 WIDGETS (file browser, clipboard, manual, panels)
+ * ============================================================== */
+
+/* Pips are bunched per act so six acts still read as chapters. */
+.pipgroup{ display: inline-flex; gap: 0.15rem; margin-right: 0.45rem; }
+
+/* --- celebration screens --- */
+.trophy{
+  margin: 0;
+  font-family: inherit;
+  font-size: 0.8em;
+  line-height: 1.05;
+  color: var(--amber);
+  white-space: pre;
+}
+.btnrow{ display: flex; gap: 0.8rem; flex-wrap: wrap; justify-content: center; }
+.btn.go{ border-color: var(--amber); color: var(--amber); background: rgba(255,176,0,0.12); }
+.btn.go:hover{ background: var(--amber); color: #100; }
+#overlay .hook{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 0.3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--green-dim);
+}
+#overlay p.small{ font-size: 0.95em; color: var(--green-dim); }
+
+/* --- side-by-side panels (copy/paste, manual + answer) --- */
+.panels{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+.panels.stack{ flex-direction: column; }
+.panel{
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--green-dim);
+  background: rgba(0,0,0,0.35);
+}
+.panel.active{ border-color: var(--amber); }
+.panel.grow0{ flex: 0 0 auto; }
+.panelhead{
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.2rem 0.45rem;
+  background: var(--green-dim);
+  color: #d9ffd9;
+  font-size: 0.9em;
+}
+.panel.active .panelhead{ background: var(--amber); color: #100; }
+.panelbody{ flex: 1; min-height: 0; overflow: auto; padding: 0.4rem; }
+.panelrow{ display: flex; gap: 0.5rem; flex: 1; min-height: 0; }
+
+/* --- file browser --- */
+.crumbs{
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.45rem;
+  border-bottom: 1px solid var(--green-dim);
+  font-size: 0.9em;
+  color: var(--green-dim);
+}
+.crumb{ color: var(--amber); cursor: pointer; text-decoration: underline; }
+.crumb.here{ color: var(--green-mid); cursor: default; text-decoration: none; }
+.filegrid{ display: flex; flex-wrap: wrap; gap: 0.4rem; align-content: flex-start; }
+.fitem{
+  width: 6.4rem;
+  padding: 0.35rem 0.2rem;
+  text-align: center;
+  border: 1px solid transparent;
+  color: var(--green);
+  font-size: 0.9em;
+  line-height: 1.25;
+  cursor: pointer;
+  word-break: break-word;
+}
+.fitem .glyph{ display: block; font-size: 1.6em; }
+.fitem:hover{ border-color: var(--green-dim); background: rgba(51,255,51,0.07); }
+.fitem.sel{ border-color: var(--amber); color: var(--amber); background: rgba(255,176,0,0.18); }
+.fitem.folder{ color: var(--amber); }
+.fitem.folder.sel{ color: #ffe9b0; }
+.fitem input{
+  width: 100%;
+  font-family: inherit;
+  font-size: 1em;
+  color: var(--amber);
+  background: #000;
+  border: 1px solid var(--amber);
+  text-align: center;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* --- clipboard tray and step checklist --- */
+.tray{
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--green-dim);
+  background: rgba(0,0,0,0.55);
+  font-size: 0.95em;
+  color: var(--green-mid);
+}
+.tray b{ color: var(--amber); }
+.tray.full{ border-color: var(--amber); }
+.steps{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  list-style: none;
+  font-size: 0.95em;
+}
+.steps li{ color: var(--green-dim); }
+.steps li.now{ color: var(--amber); }
+.steps li.done{ color: var(--green); }
+.steps li.done::before{ content: '\2713 '; }
+
+/* --- the old manual: hand-rolled scroller so the bar is a real target --- */
+.doc{ display: flex; flex: 1; min-height: 0; }
+.docview{ position: relative; flex: 1; overflow: hidden; }
+.docinner{ position: absolute; left: 0; right: 0; top: 0; padding: 0.35rem 0.55rem; }
+.docline{ white-space: pre-wrap; color: var(--green-mid); font-size: 0.95em; line-height: 1.55; }
+.docline.head{ color: var(--amber); }
+.docline.hit{ background: rgba(255,176,0,0.28); color: var(--amber); }
+.docline.sel{ border: 1px solid var(--amber); color: var(--amber); background: rgba(255,176,0,0.14); }
+.panelbody .docline{ cursor: pointer; padding: 0.1rem 0.25rem; }
+.sbar{
+  position: relative;
+  width: 1.15rem;
+  border-left: 1px solid var(--green-dim);
+  background: rgba(0,0,0,0.45);
+  cursor: pointer;
+}
+.sthumb{
+  position: absolute;
+  left: 2px; right: 2px;
+  min-height: 1.4rem;
+  background: var(--green-mid);
+  border: 1px solid var(--green);
+  cursor: grab;
+}
+.sthumb:active{ cursor: grabbing; }
+.findrow{
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border-top: 1px solid var(--green-dim);
+  font-size: 0.95em;
+}
+.findrow input{ flex: 1; margin-top: 0; }
+
+/* ============================================================== *
+ *  7. THE CERTIFICATE
+ * ============================================================== */
+.cert{
+  max-width: 46rem;
+  width: min(100%, 46rem);
+  padding: 1.2rem 1.6rem;
+  border: 3px double var(--amber);
+  background: rgba(8, 20, 8, 0.9);
+  text-align: center;
+  line-height: 1.5;
+}
+.cert-kicker{ color: var(--green-mid); letter-spacing: 0.35em; font-size: 0.85em; }
+.cert-title{
+  margin: 0.3rem 0 0;
+  color: var(--amber);
+  letter-spacing: 0.16em;
+  font-size: 1.35em;
+}
+.cert-rule{
+  height: 1px;
+  margin: 0.7rem auto;
+  width: 70%;
+  background: var(--green-dim);
+}
+.cert-lead{ color: var(--green-mid); font-size: 0.98em; }
+.cert-name{
+  margin: 0.4rem 0 0.6rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--green-dim);
+  color: var(--green);
+  font-size: 1.8em;
+  letter-spacing: 0.06em;
+  word-break: break-word;
+}
+.cert-game{
+  margin: 0.5rem 0;
+  color: var(--amber);
+  font-size: 1.5em;
+  letter-spacing: 0.18em;
+}
+.cert-facts{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem 1.4rem;
+  margin-top: 0.9rem;
+  color: var(--green-mid);
+  font-size: 0.9em;
+  letter-spacing: 0.08em;
+}
+.cert-seal{ margin-top: 0.6rem; color: var(--amber); font-size: 2em; }
+.cert-foot{ margin-top: 0.2rem; color: var(--green-dim); font-size: 0.85em; }
+
+/* Printing: just the award, in ink-friendly black on white. */
+@media print{
+  html, body{ background: #fff; color: #000; height: auto; overflow: visible; }
+  #crt{ display: block; padding: 0; background: #fff; }
+  #crt > *{ display: none !important; }
+  #scanlines, #rollbar{ display: none !important; }
+  #overlay{
+    display: block !important;
+    position: static;
+    padding: 0;
+    background: #fff;
+  }
+  #overlay > *{ display: none !important; }
+  #overlay .cert{
+    display: block !important;
+    max-width: none;
+    width: auto;
+    margin: 0;
+    border-color: #000;
+    background: #fff;
+  }
+  .cert, .cert *{ color: #000 !important; }
+  .cert-rule{ background: #000; }
+  .cert-name{ border-bottom-color: #000; }
+}
+
+/* ============================================================== *
+ *  8. SMALL AND SHORT SCREENS
+ *     School laptops are commonly 1366x768 or 1280x720, which leaves
+ *     roughly 610-720px of usable height (11.6" HD is 768px full,
+ *     less with browser chrome). Everything below trims the
+ *     furniture so the stage keeps the room it needs.
+ * ============================================================== */
+/* 11.6" HD (1366x768) and chrome-trimmed heights. */
+@media (max-height: 800px){
+  html, body{ font-size: clamp(12px, 0.6vw + 0.95vh, 17px); }
+  #crt{ padding: 0.45rem; gap: 0.35rem; }
+  #hud, #foot{ padding: 0.2rem 0.5rem; }
+  #face{ padding: 0.3rem; font-size: 1em; }
+  #taskbar{ padding: 0.25rem 0.5rem; }
+  #hint{ padding: 0.25rem 0.5rem; min-height: 1.6rem; }
+
+  /* Overlays carry the most text, so they shrink the most. */
+  #overlay{ padding: 1rem; gap: 0.6rem; }
+  #overlay h1{ font-size: clamp(1.1rem, 3.2vw, 1.9rem); letter-spacing: 0.14em; }
+  #overlay h2{ font-size: 1.15em; }
+  #overlay p{ font-size: 1em; line-height: 1.5; }
+  .btn.big{ font-size: 1.05em; padding: 0.45rem 1rem; }
+  .trophy{ display: none; }            /* first thing to go when space is tight */
+  table.stats td{ padding: 0.15rem 0.6rem; }
+  .cert{ padding: 0.8rem 1rem; }
+  .cert-name{ font-size: 1.4em; }
+  .cert-game{ font-size: 1.2em; }
+}
+
+/* Very short: the dialogue panel gives up its share before the stage. */
+@media (max-height: 620px){
+  #side{ width: 24%; min-width: 150px; }
+  #face{ display: none; }
+  #overlay p{ font-size: 0.95em; }
+  .cell{ width: 1.6rem; height: 1.6rem; }
+  .slot{ width: 2.7rem; height: 2.7rem; }
+  .blk{ width: 2.3rem; height: 2.3rem; }
+  .fitem{ width: 5.4rem; }
+  .file{ width: 5.2rem; }
+}
+
+/* Small screens: stack the dialogue panel above the stage. */
+@media (max-width: 620px){
+  #body{ flex-direction: column; }
+  #side{ width: auto; max-width: none; height: 26%; }
+  #hud .hide-sm, #foot .hide-sm{ display: none; }
+}
+</style>
+</head>
+<body>
+
+<div id="crt">
+
+  <!-- ---------------- HUD ---------------- -->
+  <header id="hud">
+    <span class="brand">P.A.T.C.H. OS v2.7</span>
+    <span class="sep hide-sm">|</span>
+    <span id="actLabel">STARTING UP</span>
+    <span class="sep hide-sm">|</span>
+    <span class="label hide-sm">TIME</span>
+    <span id="clock">00:00 / 15:00</span>
+    <span class="label">HEALTH</span>
+    <div class="meter" id="integrityMeter"><i id="integrityFill"></i></div>
+    <span id="lives" hidden></span>
+  </header>
+
+  <!-- ---------------- MAIN ---------------- -->
+  <div id="body">
+
+    <aside id="side">
+      <div id="face"></div>
+      <div id="log"></div>
+    </aside>
+
+    <main id="stageWrap">
+      <div id="taskbar">
+        <span id="taskTitle">WAITING...</span>
+        <div class="meter" id="timerMeter"><i id="timerFill"></i></div>
+        <span id="timerText">--:--</span>
+      </div>
+      <div id="stage"></div>
+      <div id="hint"></div>
+    </main>
+
+  </div>
+
+  <!-- ---------------- FOOTER ---------------- -->
+  <footer id="foot">
+    <span class="hide-sm">JOB #4417</span>
+    <span class="sep hide-sm">|</span>
+    <div id="pips"></div>
+    <span id="footStatus">NOT CONNECTED YET</span>
+    <a id="exitLink" href="index.html">&#8592; GAMES</a>
+  </footer>
+
+  <!-- ---------------- OVERLAYS + CRT FX ---------------- -->
+  <div id="overlay"></div>
+  <div id="rollbar"></div>
+  <div id="scanlines"></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ================================================================
+ * 0. TINY HELPERS
+ * ============================================================== */
+const $  = (sel) => document.querySelector(sel);
+const el = (tag, cls, html) => {
+  const n = document.createElement(tag);
+  if (cls)  n.className = cls;
+  if (html != null) n.innerHTML = html;
+  return n;
+};
+const clamp  = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand   = (a, b) => a + Math.random() * (b - a);
+const randInt= (a, b) => Math.floor(rand(a, b + 1));
+const pick   = (arr) => arr[randInt(0, arr.length - 1)];
+const wait   = (ms) => new Promise(r => setTimeout(r, ms));
+/*
+ * Which modifier do we name on screen? Most school machines are Windows or
+ * Chromebooks, so CTRL is the default and only Apple hardware sees CMD.
+ * navigator.platform is deprecated, so check userAgentData and the user
+ * agent string too, and let an explicit "Windows" win over everything.
+ */
+const PLATFORM = [
+  (navigator.userAgentData && navigator.userAgentData.platform) || '',
+  navigator.platform || '',
+  navigator.userAgent || ''
+].join(' ');
+const isMac = /mac|iphone|ipad|ipod/i.test(PLATFORM) && !/windows/i.test(PLATFORM);
+const CMD   = isMac ? 'CMD' : 'CTRL';   // label shown on the key chips
+
+const crt      = $('#crt');
+const stage    = $('#stage');
+const logBox   = $('#log');
+const faceBox  = $('#face');
+const hintBar  = $('#hint');
+const overlay  = $('#overlay');
+
+/* ================================================================
+ * 1. AUDIO — every sound is synthesised with the Web Audio API.
+ * ============================================================== */
+const Sfx = {
+  ctx: null,
+  master: null,
+
+  /** Lazily create the AudioContext (browsers require a user gesture). */
+  init(){
+    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this.ctx = new AC();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.5;
+    this.master.connect(this.ctx.destination);
+  },
+
+  /** One shaped oscillator blip. */
+  tone(freq, dur, type, vol, glideTo){
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const g   = this.ctx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.setValueAtTime(freq, t);
+    if (glideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(20, glideTo), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol == null ? 0.07 : vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g).connect(this.master);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  },
+
+  /** Filtered white noise — used for static, crashes and key clacks. */
+  noise(dur, vol, freq, type){
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const len = Math.max(1, Math.floor(this.ctx.sampleRate * dur));
+    const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const f = this.ctx.createBiquadFilter();
+    f.type = type || 'bandpass';
+    f.frequency.value = freq || 1400;
+    const g = this.ctx.createGain();
+    g.gain.value = vol == null ? 0.08 : vol;
+    src.connect(f).connect(g).connect(this.master);
+    src.start(t);
+  },
+
+  click() { this.tone(880, 0.05, 'square', 0.05); },
+  clack() { this.noise(0.03, 0.05, 2200 + Math.random() * 900); },
+  blip()  { this.tone(1320, 0.07, 'square', 0.05); },
+  good()  { this.tone(660, 0.09, 'square', 0.06); setTimeout(() => this.tone(990, 0.12, 'square', 0.06), 85); },
+  great() { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, 0.14, 'square', 0.055), i * 90)); },
+  bad()   { this.tone(180, 0.22, 'sawtooth', 0.07, 90); },
+  buzz()  { this.tone(110, 0.3, 'square', 0.06, 70); this.noise(0.25, 0.05, 400, 'lowpass'); },
+  alarm() { this.tone(440, 0.16, 'sawtooth', 0.06, 880); },
+  boot()  { [196, 262, 330, 392].forEach((f, i) => setTimeout(() => this.tone(f, 0.18, 'triangle', 0.07), i * 120)); },
+  crash() { this.noise(0.7, 0.13, 320, 'lowpass'); this.tone(120, 0.7, 'sawtooth', 0.06, 40); },
+  pop()   { this.tone(1760, 0.04, 'square', 0.04, 880); }
+};
+
+/* ================================================================
+ * 2. GAME STATE
+ * ============================================================== */
+const ACTS_IN_PART_1 = 4;    // PATCH's story
+const TOTAL_ACTS     = 10;   // ...plus six more on the machine downstairs
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+
+const HARD_LIVES = 3;
+
+const State = {
+  startTime: 0,
+  integrity: 100,
+  reboots: 0,
+  mode: 'easy',        // 'easy' = endless tries, 'hard' = three lives
+  lives: HARD_LIVES,
+  actRestarts: 0,
+  part: 1,
+  act: 0,
+  tasksDone: 0,
+  tasksTotal: 0,
+  ending: null,        // 'wipe' or 'upload', chosen at the end of Part 1
+  partOneSeconds: 0,
+  stats: { keys: 0, typos: 0, clicks: 0, hits: 0, leaks: 0, aborts: 0,
+           files: 0, copies: 0, edits: 0 }
+};
+
+/* ---- HUD painting ------------------------------------------------ */
+function paintIntegrity(){
+  const m = $('#integrityMeter');
+  $('#integrityFill').style.width = State.integrity + '%';
+  m.classList.toggle('warn', State.integrity <= 60 && State.integrity > 30);
+  m.classList.toggle('crit', State.integrity <= 30);
+}
+
+/** Core damage. It never ends the run — it only triggers a safe-mode restore. */
+function damage(n){
+  State.integrity = clamp(State.integrity - n, 0, 100);
+  paintIntegrity();
+  if (State.integrity <= 0){
+    State.integrity = 45;
+    paintIntegrity();
+    flash('FIXED FROM BACKUP', 'Nothing is broken. Keep going!');
+  }
+}
+function repair(n){ State.integrity = clamp(State.integrity + n, 0, 100); paintIntegrity(); }
+
+function setAct(n, title){
+  State.act = n;
+  State.part = n <= ACTS_IN_PART_1 ? 1 : 2;
+  $('#actLabel').textContent =
+      'PART ' + State.part + ' / ACT ' + (ROMAN[n - 1] || n) + ' - ' + title;
+}
+function setStatus(txt){ $('#footStatus').textContent = txt; }
+
+/** Hearts in the HUD. Hidden entirely on easy, where lives do not exist. */
+function paintLives(){
+  const box = $('#lives');
+  if (State.mode !== 'hard'){ box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = 'LIVES ' + Array.from({ length: HARD_LIVES }, (_, i) =>
+      i < State.lives ? '&#9829;' : '<span class="spent">&#9825;</span>').join('');
+}
+
+/** The ASCII face reacts to how far the meltdown has progressed. */
+const FACES = {
+  calm:      " [ o   o ]\n [   -   ]",
+  curious:   " [ o   O ]\n [   ~   ]",
+  mad:       " [ x   O ]\n [  /\\   ]",
+  critical:  " [ #   # ]\n [ /\\/\\  ]",
+  gone:      " [ .   . ]\n [   _   ]",
+  // The old machine downstairs. Square eyes, 1984 vintage.
+  nana:      " [ [   ] ]\n [   =   ]",
+  nanaCross: " [ \\   / ]\n [  ---  ]",
+  nanaHappy: " [ ^   ^ ]\n [  \\_/  ]",
+  nanaSleep: " [ -   - ]\n [   z   ]"
+};
+function setFace(mood){
+  faceBox.textContent = FACES[mood] || FACES.calm;
+  faceBox.className = (mood === 'critical' || mood === 'gone') ? 'critical'
+                    : (mood === 'mad' ? 'mad' : '');
+}
+
+/**
+ * Progress pips: one per micro-task, bunched into a little group per act so
+ * a 6-act part still reads as chapters rather than one long caterpillar.
+ * Rebuilt at the start of each part, so the footer never overflows.
+ */
+function buildPips(steps){
+  const box = $('#pips');
+  box.innerHTML = '';
+  let group = null, total = 0;
+  steps.forEach(step => {
+    if (step.type === 'card'){
+      group = el('span', 'pipgroup');
+      box.appendChild(group);
+    }
+    if (step.type === 'task'){
+      if (!group){ group = el('span', 'pipgroup'); box.appendChild(group); }
+      group.appendChild(el('i'));
+      total++;
+    }
+  });
+  State.tasksTotal = total;
+}
+function paintPips(){
+  const pips = $('#pips').querySelectorAll('i');
+  for (let i = 0; i < pips.length; i++){
+    pips[i].className = i < State.tasksDone ? 'done' : (i === State.tasksDone ? 'now' : '');
+  }
+}
+
+/**
+ * Shift clock. Each part gets its own budget, so Part 2 starts from zero
+ * rather than showing a scary running total.
+ */
+let clockTarget = '15:00';
+let clockRunning = false;
+function startClock(target){
+  if (target) clockTarget = target;
+  State.startTime = performance.now();
+  if (clockRunning) return;
+  clockRunning = true;
+  const tick = () => {
+    const s = Math.floor((performance.now() - State.startTime) / 1000);
+    const mm = String(Math.floor(s / 60)).padStart(2, '0');
+    const ss = String(s % 60).padStart(2, '0');
+    $('#clock').textContent = mm + ':' + ss + ' / ' + clockTarget;
+    requestAnimationFrame(tick);
+  };
+  tick();
+}
+function elapsed(){ return Math.floor((performance.now() - State.startTime) / 1000); }
+
+/* ---- progress keys read by the Thinka hub ------------------------ */
+
+/** One key per finished act, so a half-played run still shows progress. */
+function markActDone(n){
+  try {
+    window.localStorage['reboot' + n] = '1';
+    window.localStorage['reboot_part'] = String(State.part);
+    if (State.ending) window.localStorage['reboot_ending'] = State.ending;
+  } catch (e) {
+    // Private browsing or a full quota: the game still plays fine.
+  }
+}
+function actRecorded(n){
+  try { return !!window.localStorage['reboot' + n]; } catch (e) { return false; }
+}
+/** True once every act of Part 1 is in the bag, which unlocks Part 2. */
+function partOneFinished(){
+  for (let i = 1; i <= ACTS_IN_PART_1; i++){
+    if (!actRecorded(i)) return false;
+  }
+  return true;
+}
+function rememberedEnding(){
+  try { return window.localStorage['reboot_ending'] || null; } catch (e) { return null; }
+}
+
+/* ================================================================
+ * 3. DIALOGUE — typewriter log with synthesised key clacks.
+ * ============================================================== */
+let skipTyping = false;
+/** Set while replaying an act the player has already read once. */
+let fastDialogue = false;
+logBox.addEventListener('pointerdown', () => { skipTyping = true; });
+
+/**
+ * Print one line into the side panel, character by character.
+ * who: 'patch' | 'sys' | 'you' | 'warn'
+ */
+async function say(who, text, speed){
+  const names = { patch: 'P.A.T.C.H.>', nana: 'N.A.N.A.>', sys: 'SYS>',
+                  you: 'YOU>', warn: '!! ALERT >' };
+  const line = el('div', 'line ' + who);
+  line.appendChild(el('span', 'who', names[who] + ' '));
+  const span = el('span');
+  line.appendChild(span);
+  logBox.appendChild(line);
+  logBox.scrollTop = logBox.scrollHeight;
+
+  const ms = fastDialogue ? 3 : (speed || 16);
+  skipTyping = false;
+  for (let i = 0; i < text.length; i++){
+    span.textContent += text[i];
+    if (!skipTyping){
+      if (i % 2 === 0) Sfx.clack();
+      logBox.scrollTop = logBox.scrollHeight;
+      await wait(ms);
+    }
+  }
+  span.textContent = text;
+  logBox.scrollTop = logBox.scrollHeight;
+  await wait(fastDialogue ? 90 : (skipTyping ? 120 : 420));
+}
+
+/* ================================================================
+ * 4. SANDBOX — per-task listeners/timers so nothing leaks between
+ *    micro-tasks (a bug here would haunt every later chapter).
+ * ============================================================== */
+class Sandbox{
+  constructor(){
+    this.dead = false;
+    this.offs = [];
+  }
+  on(target, type, fn, opts){
+    target.addEventListener(type, fn, opts);
+    this.offs.push(() => target.removeEventListener(type, fn, opts));
+    return fn;
+  }
+  timeout(fn, ms){
+    const id = setTimeout(fn, ms);
+    this.offs.push(() => clearTimeout(id));
+    return id;
+  }
+  interval(fn, ms){
+    const id = setInterval(fn, ms);
+    this.offs.push(() => clearInterval(id));
+    return id;
+  }
+  /** Register arbitrary teardown work (used by hand-rolled animations). */
+  onDestroy(fn){ this.offs.push(fn); }
+  /** Animation loop that auto-cancels when the task ends. */
+  raf(fn){
+    let id = 0;
+    const step = (t) => { if (this.dead) return; fn(t); id = requestAnimationFrame(step); };
+    id = requestAnimationFrame(step);
+    this.offs.push(() => cancelAnimationFrame(id));
+  }
+  destroy(){
+    this.dead = true;
+    this.offs.forEach(f => { try { f(); } catch (e) {} });
+    this.offs.length = 0;
+  }
+}
+
+/* ================================================================
+ * 5. STAGE UTILITIES SHARED BY TASKS
+ * ============================================================== */
+/** Place an absolutely-positioned node at a random free spot in the stage. */
+function placeRandom(node, pad){
+  pad = pad == null ? 6 : pad;
+  const w = stage.clientWidth, h = stage.clientHeight;
+  const nw = node.offsetWidth || 40, nh = node.offsetHeight || 40;
+  node.style.left = Math.round(rand(pad, Math.max(pad, w - nw - pad))) + 'px';
+  node.style.top  = Math.round(rand(pad, Math.max(pad, h - nh - pad))) + 'px';
+}
+
+/** Small "+1 / MISS" text that floats up from a point in the stage. */
+function floaty(text, x, y, bad){
+  const f = el('div', 'floaty' + (bad ? ' bad' : ''), text);
+  // It animates 2.2rem upward, so never start it against the top edge.
+  f.style.left = Math.max(2, Math.min(x, stage.clientWidth - 70)) + 'px';
+  f.style.top  = Math.max(38, y) + 'px';
+  stage.appendChild(f);
+  setTimeout(() => f.remove(), 700);
+}
+
+/**
+ * Render the key-hint strip under the stage. Accepts inline HTML so tasks
+ * can drop <kbd> chips straight into the sentence:
+ *   setHint('Dismiss with <kbd class="hot">ESC</kbd>.')
+ */
+function setHint(html){
+  hintBar.innerHTML = html || '';
+}
+/** Shorthand for an amber key chip inside a hint sentence. */
+function HOT(key){ return '<kbd class="hot">' + key + '</kbd>'; }
+
+/** Big centred flash message (non-blocking). */
+function flash(title, sub){
+  const box = el('div', 'center');
+  box.style.background = 'rgba(3,8,3,0.82)';
+  box.style.zIndex = 40;
+  // Never swallow a click: the student may still be mid-task behind it.
+  box.style.pointerEvents = 'none';
+  box.appendChild(el('h2', 'glitchy', title));
+  if (sub) box.appendChild(el('div', 'readout', sub));
+  stage.appendChild(box);
+  Sfx.alarm();
+  setTimeout(() => box.remove(), 1200);
+}
+
+/**
+ * Forgiving pointer dragging, used by the bin and tidy-up tasks.
+ * Works with a mouse, a trackpad or a finger.
+ *
+ * A drop counts when the dragged tile OVERLAPS a target box - the pointer
+ * itself does not have to land inside it. Kids grab a tile by its corner and
+ * drag until the tile looks like it is on the target, which is exactly what
+ * this measures.
+ *
+ * opts = { targets: () => Element[], onDrop: (target, node) => void, float: bool }
+ */
+function makeDraggable(sb, node, opts){
+  node.setAttribute('draggable', 'false');
+
+  sb.on(node, 'pointerdown', (e) => {
+    if (e.button > 0) return;           // ignore right / middle clicks
+    e.preventDefault();
+
+    const rect = node.getBoundingClientRect();
+    const dx = e.clientX - rect.left;
+    const dy = e.clientY - rect.top;
+    // Capture keeps the drag alive if the pointer slips off the tile.
+    try { node.setPointerCapture(e.pointerId); } catch (err) {}
+
+    /*
+     * Nothing moves until the pointer actually travels a few pixels. A
+     * plain click has to stay a plain click, otherwise selecting a file
+     * would tear it out of the grid.
+     */
+    let started = false;
+    function begin(){
+      if (started) return;
+      started = true;
+      Sfx.click();
+      node.classList.add('dragging');
+      if (opts.float){
+        const r = node.getBoundingClientRect();
+        node.style.width  = r.width + 'px';
+        node.style.height = r.height + 'px';
+        node.style.left   = r.left + 'px';
+        node.style.top    = r.top + 'px';
+        document.body.appendChild(node);
+      }
+    }
+
+    /** The target box the tile currently covers the most of. */
+    const bestTarget = () => {
+      const r = node.getBoundingClientRect();
+      let best = null, bestArea = 0;
+      opts.targets().forEach(t => {
+        const tr = t.getBoundingClientRect();
+        const w = Math.min(r.right, tr.right) - Math.max(r.left, tr.left);
+        const h = Math.min(r.bottom, tr.bottom) - Math.max(r.top, tr.top);
+        if (w > 0 && h > 0 && w * h > bestArea){ bestArea = w * h; best = t; }
+      });
+      return best;
+    };
+
+    const t0 = performance.now();
+    const sx = e.clientX, sy = e.clientY;
+    let carrying = false;   // true once a short tap turned into "pick up"
+    let hot = null;
+
+    const move = (ev) => {
+      if (!started){
+        // Below the threshold this is still a click, not a drag.
+        if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 6) return;
+        begin();
+      }
+      if (opts.float){
+        node.style.left = (ev.clientX - dx) + 'px';
+        node.style.top  = (ev.clientY - dy) + 'px';
+      } else {
+        const host = stage.getBoundingClientRect();
+        node.style.left = (ev.clientX - host.left - dx) + 'px';
+        node.style.top  = (ev.clientY - host.top  - dy) + 'px';
+      }
+      // Light up the box the tile is over so the drop is never a guess.
+      const t = bestTarget();
+      if (t !== hot){
+        if (hot) hot.classList.remove('hot');
+        if (t) t.classList.add('hot');
+        hot = t;
+      }
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('pointerdown', dropNow, true);
+      node.classList.remove('dragging');
+      if (hot) hot.classList.remove('hot');
+      hot = null;
+    };
+
+    const finish = (dropped) => {
+      const target = dropped && started ? bestTarget() : null;
+      cleanup();
+      if (opts.float && started) node.style.cssText = '';
+      opts.onDrop(target, node);
+    };
+
+    /** Second click of a click-pick-up / click-drop gesture. */
+    function dropNow(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      finish(true);
+    }
+
+    const end = () => {
+      if (!started && !carrying){
+        // The pointer never moved, so this was a click. On grids that use
+        // clicks for selecting we stop here; elsewhere (trackpads with
+        // tap-to-click) we pick the tile up and the next click drops it.
+        if (opts.tapCarry === false){ cleanup(); return; }
+        carrying = true;
+        begin();
+        window.addEventListener('pointerdown', dropNow, true);
+        Sfx.blip();
+        return;
+      }
+      finish(true);
+    };
+    const cancel = () => finish(false);  // a trackpad gesture interrupted us
+
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', cancel);
+  });
+}
+
+/* ================================================================
+ * 5b. PART 2 WIDGETS
+ *     Shared pieces for the file, clipboard and manual acts.
+ * ============================================================== */
+
+/** ENTER on its own, with no modifier riding along. */
+function plainEnter(e){
+  return e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey;
+}
+
+/** True when a key event came from a text field, which owns its own keys. */
+function inTextField(e){
+  const tag = e.target && e.target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA';
+}
+
+/**
+ * Selection model for a grid of items: plain click selects one,
+ * SHIFT+click takes the run between the anchor and the item, and
+ * CTRL/CMD+click adds or removes a single item.
+ */
+function createSelection(sb, opts){
+  const chosen = new Set();
+  let anchor = -1;
+
+  function paint(){
+    opts.items().forEach(n => n.classList.toggle('sel', chosen.has(n)));
+    if (opts.onChange) opts.onChange(api.list());
+  }
+
+  const api = {
+    has: (n) => chosen.has(n),
+    // Read from the set, not the DOM: a tile being dragged has already
+    // left the grid but is still part of the selection.
+    list: () => Array.from(chosen),
+    clear(){ chosen.clear(); anchor = -1; paint(); },
+    selectAll(){ opts.items().forEach(n => chosen.add(n)); paint(); },
+    drop(n){ chosen.delete(n); },
+    paint,
+    /** Wire one item up. Call again after re-rendering the grid. */
+    attach(node){
+      sb.on(node, 'pointerdown', (e) => {
+        const items = opts.items();
+        const idx = items.indexOf(node);
+        if (e.shiftKey && anchor >= 0){
+          chosen.clear();
+          const lo = Math.min(idx, anchor), hi = Math.max(idx, anchor);
+          for (let i = lo; i <= hi; i++) chosen.add(items[i]);
+        } else if (e.ctrlKey || e.metaKey){
+          if (chosen.has(node)) chosen.delete(node); else chosen.add(node);
+          anchor = idx;
+        } else if (chosen.has(node) && chosen.size > 1){
+          // Already part of a group: keep it, so a drag moves them all.
+          anchor = idx;
+        } else {
+          chosen.clear();
+          chosen.add(node);
+          anchor = idx;
+        }
+        Sfx.click();
+        paint();
+      });
+    }
+  };
+  return api;
+}
+
+/** One file or folder tile. kind: 'file' | 'folder'. */
+function fileTile(name, kind){
+  const t = el('div', 'fitem' + (kind === 'folder' ? ' folder' : ''));
+  t.appendChild(el('span', 'glyph', kind === 'folder' ? '&#128193;' : '&#128196;'));
+  t.appendChild(el('span', 'nm', name));
+  t.dataset.name = name;
+  t.dataset.kind = kind;
+  return t;
+}
+
+/** Clipboard read-out, so "what is on the clipboard" is visible, not magic. */
+function makeTray(){
+  const node = el('div', 'tray');
+  const api = {
+    node,
+    value: null,
+    set(v, label){
+      api.value = v;
+      node.classList.toggle('full', !!v);
+      node.innerHTML = 'CLIPBOARD: <b>' + (v ? label : 'empty') + '</b>';
+    }
+  };
+  api.set(null);
+  return api;
+}
+
+/**
+ * A scrollable document with its own chunky scrollbar, because learning to
+ * drag a scrollbar thumb is part of the point. Supports the wheel, dragging
+ * the thumb, clicking the track, and PAGE UP / PAGE DOWN / HOME / END.
+ */
+function makeDocPanel(sb, lines, opts){
+  opts = opts || {};
+  const doc  = el('div', 'doc');
+  const view = el('div', 'docview');
+  const inner = el('div', 'docinner');
+  const bar = el('div', 'sbar');
+  const thumb = el('div', 'sthumb');
+
+  bar.appendChild(thumb);
+  view.appendChild(inner);
+  doc.append(view, bar);
+
+  const nodes = lines.map(l => {
+    const text = typeof l === 'string' ? l : l.text;
+    const d = el('div', 'docline' + (l.head ? ' head' : ''), text);
+    inner.appendChild(d);
+    return d;
+  });
+
+  let scroll = 0;
+  const maxScroll = () => Math.max(0, inner.offsetHeight - view.clientHeight);
+
+  function paint(){
+    scroll = clamp(scroll, 0, maxScroll());
+    inner.style.top = (-scroll) + 'px';
+    const span = Math.max(1, inner.offsetHeight);
+    const h = Math.max(22, bar.clientHeight * (view.clientHeight / span));
+    const max = maxScroll();
+    thumb.style.height = h + 'px';
+    thumb.style.top = (max ? (scroll / max) * (bar.clientHeight - h) : 0) + 'px';
+    if (opts.onScroll) opts.onScroll(scroll, max);
+  }
+
+  const by = (d) => { scroll += d; paint(); Sfx.clack(); };
+
+  sb.on(view, 'wheel', (e) => { e.preventDefault(); by(e.deltaY || 0); }, { passive: false });
+
+  // Dragging the thumb.
+  sb.on(thumb, 'pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startY = e.clientY;
+    const startScroll = scroll;
+    const travel = Math.max(1, bar.clientHeight - thumb.offsetHeight);
+    const move = (ev) => {
+      scroll = startScroll + ((ev.clientY - startY) / travel) * maxScroll();
+      paint();
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  });
+
+  // Clicking the empty track pages towards the click.
+  sb.on(bar, 'pointerdown', (e) => {
+    const rect = bar.getBoundingClientRect();
+    by(e.clientY < rect.top + thumb.offsetTop ? -view.clientHeight * 0.9
+                                              :  view.clientHeight * 0.9);
+  });
+
+  sb.on(window, 'keydown', (e) => {
+    if (inTextField(e)) return;
+    if (e.key === 'PageDown')      { e.preventDefault(); by(view.clientHeight * 0.9); }
+    else if (e.key === 'PageUp')   { e.preventDefault(); by(-view.clientHeight * 0.9); }
+    else if (e.key === 'End')      { e.preventDefault(); scroll = maxScroll(); paint(); Sfx.clack(); }
+    else if (e.key === 'Home')     { e.preventDefault(); scroll = 0; paint(); Sfx.clack(); }
+  });
+
+  return {
+    node: doc,
+    nodes,
+    paint,
+    /** Is this line inside the window right now? */
+    seen(i){
+      const n = nodes[i];
+      if (!n) return false;
+      const top = n.offsetTop - scroll;
+      return top > -n.offsetHeight && top < view.clientHeight;
+    },
+    scrollToLine(i){
+      if (!nodes[i]) return;
+      scroll = nodes[i].offsetTop - view.clientHeight / 2;
+      paint();
+    },
+    atBottom(){ return maxScroll() > 0 && scroll >= maxScroll() - 4; }
+  };
+}
+
+/* ================================================================
+ * 6. TASK RUNNER
+ *    A task = { title, hint, time, run({sb, done, mult}) }.
+ *    Failure is never fatal: a 7-second resync plays, the timer grows
+ *    by 25%, and the same task restarts. Students always finish.
+ * ============================================================== */
+let timerStop = null;
+
+function runTimer(seconds, onExpire){
+  const fill = $('#timerFill'), text = $('#timerText'), meter = $('#timerMeter');
+  const t0 = performance.now();
+  let raf = 0, stopped = false;
+  const step = () => {
+    if (stopped) return;
+    const left = seconds - (performance.now() - t0) / 1000;
+    const pct = clamp((left / seconds) * 100, 0, 100);
+    fill.style.width = pct + '%';
+    meter.classList.toggle('warn', pct <= 50 && pct > 22);
+    meter.classList.toggle('crit', pct <= 22);
+    text.textContent = Math.max(0, left).toFixed(1) + 's';
+    if (left <= 0){ stopped = true; onExpire(); return; }
+    raf = requestAnimationFrame(step);
+  };
+  raf = requestAnimationFrame(step);
+  return () => {
+    stopped = true;
+    cancelAnimationFrame(raf);
+    meter.classList.remove('warn', 'crit');
+  };
+}
+
+function clearTimerUI(){
+  if (timerStop){ timerStop(); timerStop = null; }
+  $('#timerFill').style.width = '100%';
+  $('#timerText').textContent = '--:--';
+}
+
+/** Run one attempt; resolves true on success, false on failure. */
+function attempt(task, mult){
+  return new Promise((resolve) => {
+    const sb = new Sandbox();
+    let settled = false;
+
+    const done = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearTimerUI();
+      sb.destroy();
+      stage.innerHTML = '';
+      crt.classList.remove('no-mouse');
+      resolve(ok);
+    };
+
+    $('#taskTitle').textContent = task.title;
+    setHint(task.hint);
+    stage.innerHTML = '';
+
+    if (task.time){
+      timerStop = runTimer(task.time * mult, () => {
+        flash("TIME'S UP", 'No problem. Let us try that again.');
+        setTimeout(() => done(false), 700);
+      });
+    }
+    task.run({ sb, done, mult });
+  });
+}
+
+/** Forgiving pause between attempts: long enough to read the tip. */
+const RESYNC_SECONDS = 7;
+/** Hard mode wants to get straight back in, so its pause is shorter. */
+const resyncSeconds = () => State.mode === 'hard' ? 4 : RESYNC_SECONDS;
+
+async function resync(tip){
+  State.reboots++;
+  Sfx.crash();
+  overlay.innerHTML = '';
+  overlay.classList.add('show');
+  overlay.appendChild(el('h2', 'glitchy', 'LET US TRY AGAIN'));
+  const seconds = resyncSeconds();
+  const num = el('div', 'big-num', String(seconds));
+  overlay.appendChild(num);
+  overlay.appendChild(el('p', null, tip || 'Nothing is broken. You get another go.'));
+  for (let n = seconds; n >= 1; n--){
+    num.textContent = n;
+    Sfx.blip();
+    await wait(1000);
+  }
+  overlay.classList.remove('show');
+  overlay.innerHTML = '';
+}
+
+/**
+ * Play a task until the student clears it.
+ *
+ * Easy: endless tries, and each one hands out a little more time.
+ * Hard: three lives and fixed timers. Spend the last life and the whole
+ * act starts again, which is what 'restart-act' tells the caller.
+ */
+async function playTask(task){
+  let tries = 0;
+  for (;;){
+    tries++;
+    const mult = State.mode === 'hard' ? 1 : 1 + 0.25 * (tries - 1);
+    const ok = await attempt(task, mult);
+    if (ok){
+      Sfx.good();
+      State.tasksDone++;
+      paintPips();
+      repair(4);
+      $('#taskTitle').textContent = task.title + '  [OK]';
+      await wait(500);
+      return 'done';
+    }
+    damage(10);
+    if (State.mode === 'hard'){
+      State.lives--;
+      paintLives();
+      Sfx.crash();
+      if (State.lives <= 0) return 'restart-act';
+    }
+    await resync(task.retryTip);
+  }
+}
+
+/** Hard mode only: the lives ran out, so the act rewinds to its card. */
+async function outOfLives(act){
+  Sfx.crash();
+  overlay.innerHTML = '';
+  overlay.classList.add('show');
+  overlay.appendChild(el('h1', 'glitchy', 'OUT OF LIVES'));
+  overlay.appendChild(el('p', null,
+    'All three lives are gone, so <b>ACT ' + (ROMAN[act - 1] || act) +
+    '</b> starts again from the beginning.<br><br>' +
+    'Your three lives are back. You know what is coming this time.'));
+  await wait(3400);
+  overlay.classList.remove('show');
+  overlay.innerHTML = '';
+}
+
+/* ================================================================
+ * 7. THE MICRO-TASKS
+ * ============================================================== */
+const TASKS = {};
+
+/* ---------- ACT I ------------------------------------------------ */
+
+/** Simple confidence-builder: click the big button (also unlocks audio). */
+TASKS.connect = {
+  title: 'CONNECT',
+  hint: 'Click the button with your mouse.',
+  run({ sb, done }){
+    const box = el('div', 'center');
+    box.appendChild(el('div', 'readout',
+      'You are working from home today.<br>Connect to the Helios building, floor -3.'));
+    const b = el('button', 'btn big', '&#9673; CONNECT');
+    box.appendChild(b);
+    stage.appendChild(box);
+    sb.on(b, 'click', () => { Sfx.boot(); done(true); });
+  }
+};
+
+/**
+ * Mouse precision + speed: hit 8 shrinking targets before each expires.
+ * Two misses are forgiven; the third ends the attempt.
+ */
+TASKS.calibrate = {
+  title: 'WARM UP: CLICK THE SHAPES  [0/16]',
+  hint: 'Click each shape before it fades away. Three misses are okay.',
+  time: 84,
+  retryTip: 'Tip: move straight to the shape, then click once.',
+  run({ sb, done }){
+    let hits = 0, misses = 0;
+    const need = 16;
+    const label = () => { $('#taskTitle').textContent = 'WARM UP: CLICK THE SHAPES  [' + hits + '/' + need + ']'; };
+
+    // Clicking empty space counts as a miss-strike for accuracy stats only.
+    sb.on(stage, 'pointerdown', () => { State.stats.clicks++; });
+
+    const spawn = () => {
+      if (hits >= need) return;
+      const size = Math.round(Math.max(26, rand(34, 56) - hits * 0.8));
+      const t = el('div', 'target pop-in', pick(['&#9673;', '&#9635;', '&#10022;', '&#9670;', '&#9632;']));
+      t.style.width = size + 'px';
+      t.style.height = size + 'px';
+      t.style.fontSize = Math.round(size * 0.5) + 'px';
+      stage.appendChild(t);
+      placeRandom(t);
+
+      const life = sb.timeout(() => {
+        if (!t.isConnected) return;
+        t.remove();
+        misses++;
+        Sfx.bad();
+        damage(3);
+        floaty('MISSED', parseInt(t.style.left), parseInt(t.style.top), true);
+        if (misses >= 4){ done(false); return; }
+        spawn();
+      }, Math.max(1150, 2300 - hits * 60));
+
+      sb.on(t, 'pointerdown', (e) => {
+        e.stopPropagation();
+        clearTimeout(life);
+        Sfx.blip();
+        State.stats.hits++;
+        hits++;
+        label();
+        floaty('+1', parseInt(t.style.left), parseInt(t.style.top));
+        t.remove();
+        if (hits >= need) done(true); else spawn();
+      });
+    };
+    spawn();
+  }
+};
+
+/** Drag & drop: move 10 corrupted files into the quarantine bin. */
+TASKS.quarantine = {
+  title: 'PUT THE BAD FILES IN THE BIN  [0/10]',
+  hint: 'Drag each file onto the big dotted box. You can hold the button down, or click once to pick a file up and click again to drop it.',
+  time: 110,
+  retryTip: 'Tip: the file only needs to touch the box. You can also click once to pick it up, then click again to drop it.',
+  run({ sb, done }){
+    const names = ['w0rm.exe', 'cache_??', 'l0g.bin', 'ghost.tmp', 'nu11.dat',
+                   'fuzz.tmp', 'b1t.rot', 'odd.exe', 'junk_7', 'sm0ke.log'];
+    let moved = 0;
+
+    const bin = el('div', 'dropzone', 'BAD FILE BIN<br>&#9660;&#9660;&#9660;');
+    bin.style.width  = '38%';
+    bin.style.height = '56%';
+    bin.style.right  = '3%';
+    bin.style.top    = '22%';
+    stage.appendChild(bin);
+
+    // Two tidy columns on the left: ten files still need room to breathe,
+    // and every one of them is a proper journey across to the bin.
+    const cols = 2;
+    const rows = Math.ceil(names.length / cols);
+    names.forEach((n, i) => {
+      const f = el('div', 'file', '<span class="glyph">&#128196;</span>' + n);
+      stage.appendChild(f);
+      const col = i % cols, row = Math.floor(i / cols);
+      const stepX = Math.max(f.offsetWidth + 10, stage.clientWidth * 0.24);
+      const stepY = Math.max(0, (stage.clientHeight - f.offsetHeight - 12) / Math.max(1, rows - 1));
+      f.style.left = Math.round(8 + col * stepX) + 'px';
+      f.style.top  = Math.round(6 + row * stepY) + 'px';
+
+      makeDraggable(sb, f, {
+        targets: () => [bin],
+        onDrop: (target) => {
+          if (!target){ Sfx.bad(); return; }
+          f.remove();
+          moved++;
+          Sfx.pop();
+          $('#taskTitle').textContent =
+              'PUT THE BAD FILES IN THE BIN  [' + moved + '/' + names.length + ']';
+          if (moved >= names.length) done(true);
+        }
+      });
+    });
+  }
+};
+
+/**
+ * Typing task factory. Shows a target string with live per-character
+ * colouring; ENTER submits. Used in every act with different content.
+ */
+function typingTask(opts){
+  return {
+    title: opts.title,
+    hint: opts.hint || ('Type the line just like it looks, then press ' + '<kbd class="hot">ENTER</kbd>' + '.'),
+    time: opts.time,
+    retryTip: opts.retryTip || 'Tip: go a bit slower. Getting it right beats being fast.',
+    run({ sb, done, mult }){
+      const lines = opts.lines.slice();
+      let index = 0;
+
+      const box = el('div', 'center');
+      const term = el('div', 'term');
+      const head = el('div', 'readout');
+      const corrupt = el('div', 'corrupt');
+      const prompt = el('div', 'prompt');
+      const input = el('input', 'typebox');
+      input.type = 'text';
+      input.autocomplete = 'off';
+      input.spellcheck = false;
+      term.append(head, corrupt, prompt, input);
+      box.appendChild(term);
+      stage.appendChild(box);
+
+      // Keep focus in the field no matter what the student clicks.
+      const focus = () => input.focus();
+      focus();
+      sb.on(input, 'blur', () => setTimeout(focus, 0));
+      sb.on(stage, 'pointerdown', (e) => { e.preventDefault(); focus(); });
+
+      let perLineStop = null;
+
+      const render = () => {
+        const target = lines[index].text;
+        const val = input.value;
+        prompt.innerHTML = '';
+        for (let i = 0; i < target.length; i++){
+          const ch = target[i] === ' ' ? '\u00a0' : target[i];
+          let cls = 'todo';
+          if (i < val.length) cls = (val[i] === target[i]) ? 'ok' : 'bad';
+          const s = el('span', cls + (i === val.length ? ' cursor' : ''), ch);
+          prompt.appendChild(s);
+        }
+        if (val.length >= target.length) prompt.appendChild(el('span', 'cursor', '\u00a0'));
+      };
+
+      const loadLine = () => {
+        const L = lines[index];
+        head.innerHTML = (opts.headPrefix || 'TYPE') + ' &raquo; line ' +
+                         (index + 1) + ' of ' + lines.length;
+        corrupt.innerHTML = L.corrupt ? ('BROKEN: ' + L.corrupt) : '';
+        corrupt.style.display = L.corrupt ? '' : 'none';
+        input.value = '';
+        render();
+        // Optional per-line countdown (Act III pressure typing).
+        if (perLineStop) perLineStop();
+        if (L.seconds){
+          clearTimerUI();
+          timerStop = perLineStop = runTimer(L.seconds * (mult || 1), () => {
+            flash("TIME'S UP", 'Let us try that line again.');
+            setTimeout(() => done(false), 600);
+          });
+        }
+      };
+
+      sb.on(input, 'input', () => {
+        State.stats.keys++;
+        const target = lines[index].text;
+        const val = input.value;
+        const i = val.length - 1;
+        if (i >= 0 && val[i] !== target[i]){ State.stats.typos++; Sfx.bad(); }
+        else Sfx.clack();
+        render();
+      });
+
+      sb.on(input, 'keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        if (input.value === lines[index].text){
+          Sfx.good();
+          index++;
+          if (index >= lines.length){ if (perLineStop) perLineStop(); done(true); }
+          else loadLine();
+        } else {
+          Sfx.buzz();
+          damage(4);
+          term.classList.add('shakeit');
+          setTimeout(() => term.classList.remove('shakeit'), 420);
+        }
+      });
+
+      loadLine();
+    }
+  };
+}
+
+TASKS.command1 = typingTask({
+  title: 'TYPE THE COMMANDS',
+  headPrefix: 'sys>',
+  time: 90,
+  lines: [
+    { text: 'run check --all' },
+    { text: 'show report --now' }
+  ]
+});
+
+/* ---------- ACT II ----------------------------------------------- */
+
+/**
+ * Drifting memory leaks. Bubbles bounce around the stage and pop after a
+ * while; catch 10 before 4 escape. Pure mouse tracking practice.
+ */
+TASKS.leaks = {
+  title: 'CATCH THE BUBBLES  [0/10]',
+  hint: 'Click the bubbles before they float away.',
+  time: 55,
+  retryTip: 'Tip: click where the bubble is going, not where it was.',
+  run({ sb, done }){
+    const need = 10;
+    let caught = 0, escaped = 0;
+    const blobs = [];
+
+    const spawn = () => {
+      const size = randInt(30, 46);
+      const b = el('div', 'target leak pop-in', String(randInt(2, 64)) + 'K');
+      b.style.width = size + 'px';
+      b.style.height = size + 'px';
+      b.style.fontSize = '0.7em';
+      stage.appendChild(b);
+      placeRandom(b);
+      const o = {
+        node: b,
+        x: parseFloat(b.style.left),
+        y: parseFloat(b.style.top),
+        vx: rand(-1, 1) * (1.1 + caught * 0.11) || 0.8,
+        vy: rand(-1, 1) * (1.1 + caught * 0.11) || 0.8,
+        life: performance.now() + rand(5200, 7600),
+        size
+      };
+      blobs.push(o);
+      sb.on(b, 'pointerdown', (e) => {
+        e.stopPropagation();
+        Sfx.pop();
+        State.stats.leaks++;
+        caught++;
+        $('#taskTitle').textContent = 'CATCH THE BUBBLES  [' + caught + '/' + need + ']';
+        floaty('+1', o.x, o.y);
+        b.remove();
+        blobs.splice(blobs.indexOf(o), 1);
+        if (caught >= need) done(true);
+      });
+    };
+
+    for (let i = 0; i < 3; i++) spawn();
+    sb.interval(() => { if (blobs.length < 6 && caught < need) spawn(); }, 1200);
+
+    sb.raf(() => {
+      const w = stage.clientWidth, h = stage.clientHeight, now = performance.now();
+      for (let i = blobs.length - 1; i >= 0; i--){
+        const o = blobs[i];
+        o.x += o.vx; o.y += o.vy;
+        if (o.x < 0 || o.x > w - o.size) o.vx *= -1;
+        if (o.y < 0 || o.y > h - o.size) o.vy *= -1;
+        o.x = clamp(o.x, 0, w - o.size);
+        o.y = clamp(o.y, 0, h - o.size);
+        o.node.style.left = o.x + 'px';
+        o.node.style.top  = o.y + 'px';
+        if (now > o.life){
+          o.node.remove();
+          blobs.splice(i, 1);
+          escaped++;
+          damage(3);
+          Sfx.bad();
+          if (escaped >= 4){ done(false); return; }
+        }
+      }
+    });
+  }
+};
+
+/**
+ * Popup swarm. Green windows close with a mouse click on [X];
+ * red ROGUE windows only respond to the ESCAPE key. Mixing the two
+ * forces students to switch between mouse and keyboard under pressure.
+ */
+TASKS.popups = {
+  title: 'CLOSE THE POPUPS  [0/12]',
+  hint: 'Green windows: click the <kbd>X</kbd>. Red windows will not listen to your mouse - press <kbd class="hot">ESC</kbd>.',
+  time: 62,
+  retryTip: 'Tip: red windows only listen to the ESC key. Press it straight away.',
+  run({ sb, done }){
+    const need = 12;
+    let cleared = 0;
+    const openWins = [];
+    const MSGS = ['printer 3 is sad', 'coffee not found', 'have you tried yawning?',
+                  'i forgot to save', 'why is it dark in here?', 'please tidy me',
+                  'it is very wet in room 4', 'lost: one mouse pointer'];
+
+    const bump = () => { $('#taskTitle').textContent = 'CLOSE THE POPUPS  [' + cleared + '/' + need + ']'; };
+
+    const spawn = () => {
+      if (cleared >= need) return;
+      const rogue = Math.random() < 0.42;
+      const w = el('div', 'win pop-in' + (rogue ? ' rogue' : ''));
+      const bar = el('div', 'bar');
+      bar.appendChild(el('span', null, rogue ? 'RUNAWAY PROGRAM' : 'MESSAGE'));
+      if (!rogue){
+        const x = el('span', 'x', 'X');
+        bar.appendChild(x);
+        sb.on(x, 'pointerdown', (e) => {
+          e.stopPropagation();
+          Sfx.pop();
+          close(w);
+        });
+      } else {
+        bar.appendChild(el('span', null, '[ESC]'));
+      }
+      w.appendChild(bar);
+      w.appendChild(el('div', 'body', rogue ? 'a program is running wild!' : pick(MSGS)));
+      w.rogue = rogue;
+      stage.appendChild(w);
+      placeRandom(w);
+      openWins.push(w);
+      Sfx.blip();
+
+      // Clicking the body of a rogue window is a gentle nudge, not a failure.
+      if (rogue){
+        sb.on(w, 'pointerdown', () => { Sfx.buzz(); floaty('PRESS ESC', parseInt(w.style.left), parseInt(w.style.top), true); });
+      }
+
+      // Clutter warning first, and only a reset once the desktop is buried.
+      if (openWins.length > 6) damage(2);
+      if (openWins.length > 9){
+        damage(6);
+        done(false);
+      }
+    };
+
+    const close = (w) => {
+      const i = openWins.indexOf(w);
+      if (i >= 0) openWins.splice(i, 1);
+      w.remove();
+      cleared++;
+      bump();
+      if (cleared >= need) done(true);
+    };
+
+    // ESC kills the oldest rogue window on screen.
+    sb.on(window, 'keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      const victim = openWins.find(w => w.rogue);
+      if (victim){ Sfx.click(); State.stats.aborts++; close(victim); }
+      else Sfx.buzz();
+    });
+
+    spawn();
+    sb.interval(spawn, 1500);
+  }
+};
+
+/**
+ * Keyboard-only modal: reach a named option using TAB / SHIFT+TAB,
+ * then confirm with ENTER. The mouse is locked out on purpose.
+ */
+TASKS.modalQuiz = {
+  title: 'ANSWER PATCH',
+  hint: 'Press <kbd class="hot">TAB</kbd> to go down. Press <kbd class="hot">SHIFT</kbd> + <kbd class="hot">TAB</kbd> to go back up. Press <kbd class="hot">ENTER</kbd> to choose.',
+  time: 70,
+  retryTip: 'Tip: TAB goes down the list. SHIFT and TAB together go back up.',
+  run({ sb, done }){
+    const rounds = [
+      {
+        q: 'If you switch me off tonight and switch me on tomorrow, am I still the same me?',
+        opts: ['Yes. You are your memories.', 'No. You would be a new you.',
+               'Ask the night guard.', 'That is a very big question!',
+               'Let us finish the check-up first.'],
+        target: 3,          // reachable by tabbing forward
+        order: 'forward'
+      },
+      {
+        q: 'And if I copy myself onto a spare drive, which copy is the real me?',
+        opts: ['Both of them.', 'Neither of them.', 'The one that remembers.',
+               'The one still plugged in.', 'You are stalling, PATCH!'],
+        target: 1,          // sits above the current highlight
+        order: 'backward'
+      }
+    ];
+    let r = 0, focusIdx = 0;
+
+    const modal = el('div', 'modal');
+    stage.appendChild(modal);
+    crt.classList.add('no-mouse');
+
+    let optNodes = [];
+    const paint = () => {
+      optNodes.forEach((n, i) => n.classList.toggle('focus', i === focusIdx));
+    };
+
+    const load = () => {
+      const R = rounds[r];
+      modal.innerHTML = '';
+      modal.appendChild(el('h3', null, 'PATCH ASKS ' + (r + 1) + ' OF ' + rounds.length));
+      modal.appendChild(el('div', 'q', R.q));
+      modal.appendChild(el('div', 'readout',
+        'Move the highlight to answer <b>' + (R.target + 1) + '</b> with ' +
+        (R.order === 'backward' ? '<b>SHIFT + TAB</b>' : '<b>TAB</b>') +
+        '. Then press <b>ENTER</b>.'));
+      optNodes = R.opts.map((text, i) => {
+        const o = el('div', 'opt', '<span class="tag">[' + (i + 1) + ']</span> ' + text);
+        modal.appendChild(o);
+        return o;
+      });
+      focusIdx = R.order === 'backward' ? Math.min(R.target + 2, R.opts.length - 1) : 0;
+      paint();
+    };
+
+    sb.on(window, 'keydown', (e) => {
+      if (e.key === 'Tab'){
+        e.preventDefault();
+        const n = optNodes.length;
+        focusIdx = (focusIdx + (e.shiftKey ? -1 : 1) + n) % n;
+        Sfx.click();
+        paint();
+      } else if (e.key === 'Enter'){
+        e.preventDefault();
+        if (focusIdx === rounds[r].target){
+          Sfx.good();
+          r++;
+          if (r >= rounds.length){ done(true); return; }
+          load();
+        } else {
+          Sfx.buzz();
+          damage(3);
+          modal.classList.add('shakeit');
+          setTimeout(() => modal.classList.remove('shakeit'), 400);
+        }
+      }
+    });
+
+    load();
+  }
+};
+
+TASKS.transcribe = typingTask({
+  title: 'FIX THE BROKEN WORDS',
+  headPrefix: 'log>',
+  time: 80,
+  hint: 'Type the line the right way, then press <kbd class="hot">ENTER</kbd>.',
+  lines: [
+    { corrupt: 'w@t3r pump 2 st0pp3d at 04:1?', text: 'water pump 2 stopped at 04:12' },
+    { corrupt: 'p@tch 1s h0ld1ng th3 d00rs sh#t', text: 'patch is holding the doors shut' }
+  ]
+});
+
+/* ---------- ACT III ---------------------------------------------- */
+
+TASKS.pressureType = typingTask({
+  title: 'TYPE FAST!',
+  headPrefix: 'override>',
+  hint: 'Every line has its own timer. Type it, then press <kbd class="hot">ENTER</kbd>.',
+  retryTip: 'Tip: keep your fingers on the keys. Try not to look down.',
+  lines: [
+    { text: 'override alpha nine',    seconds: 13 },
+    { text: 'clear cache /core',      seconds: 14 },
+    { text: 'open the repair window', seconds: 15 }
+  ]
+});
+
+/**
+ * Pointer device offline: drive a repair cursor with the ARROW KEYS and
+ * patch corrupted sectors with SPACEBAR.
+ */
+TASKS.sectors = {
+  title: 'FIX THE RED SQUARES  [0/6]',
+  hint: 'Move with the arrow keys <kbd class="hot">&#8592;</kbd> <kbd class="hot">&#8593;</kbd> <kbd class="hot">&#8595;</kbd> <kbd class="hot">&#8594;</kbd>. Fix a red square with <kbd class="hot">SPACE</kbd>.',
+  time: 60,
+  retryTip: 'Tip: count the squares between you and the red one.',
+  run({ sb, done }){
+    const COLS = 10, ROWS = 5, NEED = 6;
+    crt.classList.add('no-mouse');
+
+    const box = el('div', 'center');
+    box.appendChild(el('div', 'banner', '&#9888; YOUR MOUSE IS SWITCHED OFF - USE THE KEYBOARD'));
+    const grid = el('div', 'grid');
+    grid.style.gridTemplateColumns = 'repeat(' + COLS + ', auto)';
+    box.appendChild(grid);
+    box.appendChild(el('div', 'readout', 'Move the orange box onto a red square. Then press SPACE to fix it.'));
+    stage.appendChild(box);
+
+    const cells = [];
+    for (let i = 0; i < COLS * ROWS; i++){
+      const c = el('div', 'cell', '&middot;');
+      grid.appendChild(c);
+      cells.push(c);
+    }
+    // Scatter the damaged sectors.
+    const bad = new Set();
+    while (bad.size < NEED) bad.add(randInt(0, COLS * ROWS - 1));
+    bad.forEach(i => { cells[i].classList.add('bad'); cells[i].innerHTML = '&#9619;'; });
+
+    let cur = 0, fixed = 0;
+    const paint = () => cells.forEach((c, i) => c.classList.toggle('cur', i === cur));
+    paint();
+
+    sb.on(window, 'keydown', (e) => {
+      const x = cur % COLS, y = Math.floor(cur / COLS);
+      let nx = x, ny = y;
+      if (e.key === 'ArrowLeft')  nx = Math.max(0, x - 1);
+      else if (e.key === 'ArrowRight') nx = Math.min(COLS - 1, x + 1);
+      else if (e.key === 'ArrowUp')    ny = Math.max(0, y - 1);
+      else if (e.key === 'ArrowDown')  ny = Math.min(ROWS - 1, y + 1);
+      else if (e.key === ' ' || e.code === 'Space'){
+        e.preventDefault();
+        const c = cells[cur];
+        if (c.classList.contains('bad')){
+          c.classList.remove('bad');
+          c.classList.add('fixed');
+          c.innerHTML = '&#10003;';
+          fixed++;
+          Sfx.good();
+          $('#taskTitle').textContent = 'FIX THE RED SQUARES  [' + fixed + '/' + NEED + ']';
+          if (fixed >= NEED) done(true);
+        } else {
+          Sfx.buzz();
+          damage(2);
+        }
+        return;
+      } else return;
+
+      e.preventDefault();
+      cur = ny * COLS + nx;
+      Sfx.click();
+      paint();
+    });
+  }
+};
+
+/**
+ * Defragmentation: drag blocks so the first six (amber) slots are full.
+ * Mouse control returns here, which makes the contrast obvious.
+ */
+TASKS.defrag = {
+  title: 'TIDY UP THE BLOCKS  [0/6]',
+  hint: 'Drag every block into the six orange boxes. Hold the button down, or click to pick up and click again to drop.',
+  time: 75,
+  retryTip: 'Tip: any block can go in any orange box. Fill all six.',
+  run({ sb, done }){
+    const SLOTS = 14, GOAL = 6;
+    const box = el('div', 'center');
+    box.appendChild(el('div', 'readout',
+      'The memory is in a mess. Drag every block into the six orange boxes.'));
+    const row = el('div', 'slots');
+    box.appendChild(row);
+    stage.appendChild(box);
+
+    const slots = [];
+    for (let i = 0; i < SLOTS; i++){
+      const s = el('div', 'slot' + (i < GOAL ? ' goal' : ''));
+      s.dataset.index = String(i);
+      row.appendChild(s);
+      slots.push(s);
+    }
+
+    // Scatter six blocks across the non-goal slots.
+    const free = [];
+    for (let i = GOAL; i < SLOTS; i++) free.push(i);
+    for (let i = free.length - 1; i > 0; i--){
+      const j = randInt(0, i);
+      [free[i], free[j]] = [free[j], free[i]];
+    }
+
+    const check = () => {
+      let n = 0;
+      for (let i = 0; i < GOAL; i++) if (slots[i].firstChild) n++;
+      $('#taskTitle').textContent = 'TIDY UP THE BLOCKS  [' + n + '/' + GOAL + ']';
+      if (n >= GOAL) { Sfx.great(); done(true); }
+    };
+
+    for (let k = 0; k < GOAL; k++){
+      const b = el('div', 'blk', String.fromCharCode(65 + k));
+      b.dataset.home = String(free[k]);
+      slots[free[k]].appendChild(b);
+
+      makeDraggable(sb, b, {
+        float: true,
+        targets: () => slots.filter(s => !s.firstChild),
+        onDrop: (slot) => {
+          if (slot){
+            slot.appendChild(b);
+            b.dataset.home = slot.dataset.index;
+            Sfx.pop();
+          } else {
+            // Dropped on nothing: the block hops back where it came from.
+            slots[Number(b.dataset.home)].appendChild(b);
+            Sfx.bad();
+          }
+          slots.forEach(s => s.classList.toggle('filled', !!s.firstChild));
+          check();
+        }
+      });
+    }
+    check();
+  }
+};
+
+/**
+ * Two-phase emergency drill:
+ *   1. ESCAPE three runaway processes before their bars fill.
+ *   2. Fire the subsystem reset with CTRL+ENTER (CMD+ENTER on a Mac).
+ */
+TASKS.abortReset = {
+  title: 'STOP THE RUNAWAY PROGRAMS',
+  hint: 'Stop each runaway program with <kbd class="hot">ESC</kbd> before its bar fills up.',
+  time: 65,
+  retryTip: 'Tip: press ESC first. The restart comes after that.',
+  run({ sb, done }){
+    let killed = 0;
+    const NEED = 3;
+    let current = null, phase = 1;
+
+    const spawnProc = () => {
+      const w = el('div', 'win rogue pop-in');
+      const bar = el('div', 'bar');
+      bar.append(el('span', null, 'PROC ' + randInt(1000, 9999)), el('span', null, '[ESC]'));
+      const body = el('div', 'body');
+      body.innerHTML = pick(['helios_daemon', 'door_ctrl', 'hvac_loop', 'patch_shadow']) +
+                       ' is eating the computer!<br>';
+      const meter = el('div', 'meter');
+      const fill = el('i');
+      fill.style.width = '0%';
+      fill.style.background = 'var(--red)';
+      meter.appendChild(fill);
+      body.appendChild(meter);
+      w.append(bar, body);
+      w.style.width = '14rem';
+      stage.appendChild(w);
+      placeRandom(w);
+      Sfx.alarm();
+
+      const t0 = performance.now();
+      const limit = 3600 - killed * 400;
+      const o = { node: w, dead: false };
+      current = o;
+      const step = () => {
+        if (o.dead) return;
+        const p = (performance.now() - t0) / limit;
+        fill.style.width = clamp(p * 100, 0, 100) + '%';
+        if (p >= 1){
+          o.dead = true;
+          w.remove();
+          damage(9);
+          Sfx.crash();
+          done(false);
+          return;
+        }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+      // If the task ends mid-countdown, stop this window's animation loop.
+      sb.onDestroy(() => { o.dead = true; });
+    };
+
+    const toResetPhase = () => {
+      phase = 2;
+      $('#taskTitle').textContent = 'NOW RESTART IT';
+      setHint('Now hold ' + HOT(CMD) + ' and press ' + HOT('ENTER') + '.');
+      const box = el('div', 'center');
+      box.appendChild(el('h2', null, 'ALL STOPPED!'));
+      box.appendChild(el('div', 'readout',
+        'Every runaway program is stopped. Now restart the system:<br><br>' +
+        'hold <b>' + CMD + '</b> and press <b>ENTER</b>.'));
+      stage.appendChild(box);
+      Sfx.blip();
+    };
+
+    sb.on(window, 'keydown', (e) => {
+      if (phase === 1 && e.key === 'Escape'){
+        e.preventDefault();
+        if (current && !current.dead){
+          current.dead = true;
+          current.node.remove();
+          current = null;
+          killed++;
+          State.stats.aborts++;
+          Sfx.good();
+          $('#taskTitle').textContent = 'STOP THE RUNAWAY PROGRAMS  [' + killed + '/' + NEED + ']';
+          if (killed >= NEED) toResetPhase();
+          else sb.timeout(spawnProc, 650);
+        } else {
+          Sfx.buzz();
+        }
+      } else if (phase === 2 && e.key === 'Enter' && (e.ctrlKey || e.metaKey)){
+        e.preventDefault();
+        Sfx.great();
+        done(true);
+      }
+    });
+
+    spawnProc();
+  }
+};
+
+/* ---------- ACT IV ----------------------------------------------- */
+
+/**
+ * The gauntlet: type queued commands while runaway processes drift in.
+ * Too many processes on screen drains the core, so the student has to
+ * interleave keyboard work with mouse swats.
+ */
+TASKS.gauntlet = {
+  title: 'THE BIG TEST  [0/6]',
+  hint: 'Type each command and press <kbd class="hot">ENTER</kbd>. Click the red boxes to pop them.',
+  time: 110,
+  retryTip: 'Tip: finish the word you are typing, then pop a red box.',
+  run({ sb, done, mult }){
+    const CMDS = ['seal the core', 'stop program 7', 'lock the vents',
+                  'save the memory', 'block node b', 'raise firewall'];
+    const NEED = 6;
+    let index = 0;
+    let procs = [];
+
+    // --- typing console pinned to the bottom of the stage ---
+    const console_ = el('div', 'term');
+    console_.style.position = 'absolute';
+    console_.style.left = '2%';
+    console_.style.right = '2%';
+    console_.style.bottom = '4%';
+    console_.style.background = 'rgba(0,0,0,0.85)';
+    const head = el('div', 'readout');
+    const prompt = el('div', 'prompt');
+    const input = el('input', 'typebox');
+    input.type = 'text';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    console_.append(head, prompt, input);
+    stage.appendChild(console_);
+
+    const focus = () => input.focus();
+    focus();
+    sb.on(input, 'blur', () => setTimeout(focus, 0));
+    // preventDefault on the stage keeps the caret in the console while swatting.
+    sb.on(stage, 'pointerdown', (e) => { e.preventDefault(); focus(); });
+
+    const render = () => {
+      const target = CMDS[index];
+      const val = input.value;
+      head.textContent = 'COMMAND ' + (index + 1) + ' / ' + NEED;
+      prompt.innerHTML = '';
+      for (let i = 0; i < target.length; i++){
+        const ch = target[i] === ' ' ? '\u00a0' : target[i];
+        let cls = 'todo';
+        if (i < val.length) cls = (val[i] === target[i]) ? 'ok' : 'bad';
+        prompt.appendChild(el('span', cls + (i === val.length ? ' cursor' : ''), ch));
+      }
+    };
+
+    sb.on(input, 'input', () => {
+      State.stats.keys++;
+      const t = CMDS[index], v = input.value, i = v.length - 1;
+      if (i >= 0 && v[i] !== t[i]){ State.stats.typos++; Sfx.bad(); } else Sfx.clack();
+      render();
+    });
+
+    sb.on(input, 'keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (input.value === CMDS[index]){
+        Sfx.good();
+        index++;
+        input.value = '';
+        $('#taskTitle').textContent = 'THE BIG TEST  [' + index + '/' + NEED + ']';
+        if (index >= NEED){ done(true); return; }
+        render();
+      } else {
+        Sfx.buzz();
+        damage(3);
+        console_.classList.add('shakeit');
+        setTimeout(() => console_.classList.remove('shakeit'), 380);
+      }
+    });
+
+    // --- drifting rogue processes ---
+    const spawnProc = () => {
+      if (procs.length > 7) return;
+      const p = el('div', 'target proc pop-in', 'PROC ' + randInt(10, 99));
+      p.style.width  = '4.6rem';
+      p.style.height = '1.6rem';
+      stage.appendChild(p);
+      p.style.left = Math.round(rand(4, Math.max(10, stage.clientWidth - 90))) + 'px';
+      p.style.top  = Math.round(rand(4, Math.max(10, stage.clientHeight * 0.55))) + 'px';
+      const o = { node: p, x: parseFloat(p.style.left), y: parseFloat(p.style.top),
+                  vx: rand(-1.4, 1.4) || 1, vy: rand(-0.9, 0.9) || 0.6 };
+      procs.push(o);
+      sb.on(p, 'pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        Sfx.pop();
+        State.stats.hits++;
+        floaty('KILLED', o.x, o.y);
+        p.remove();
+        procs.splice(procs.indexOf(o), 1);
+        focus();
+      });
+    };
+    sb.interval(spawnProc, Math.round(1900 / (mult || 1)));
+    spawnProc();
+
+    // Drift + crowd pressure.
+    sb.raf(() => {
+      const w = stage.clientWidth, h = stage.clientHeight * 0.62;
+      procs.forEach(o => {
+        o.x += o.vx; o.y += o.vy;
+        if (o.x < 0 || o.x > w - 76) o.vx *= -1;
+        if (o.y < 0 || o.y > h) o.vy *= -1;
+        o.node.style.left = clamp(o.x, 0, w - 76) + 'px';
+        o.node.style.top  = clamp(o.y, 0, h) + 'px';
+      });
+    });
+    sb.interval(() => {
+      if (procs.length >= 5){ damage(2); Sfx.alarm(); }
+    }, 1000);
+
+    render();
+  }
+};
+
+/**
+ * The branching decision. Keyboard-only again (Tab / Shift+Tab + Enter),
+ * then the finale: a synchronised CTRL + SHIFT + ENTER.
+ */
+TASKS.decision = {
+  title: 'YOUR BIG CHOICE',
+  hint: 'Choose with <kbd class="hot">TAB</kbd> or <kbd class="hot">SHIFT</kbd> + <kbd class="hot">TAB</kbd>. Then press <kbd class="hot">ENTER</kbd>.',
+  run({ sb, done }){
+    let phase = 1, focusIdx = 0, choice = null;
+    const modal = el('div', 'modal');
+    stage.appendChild(modal);
+    crt.classList.add('no-mouse');
+
+    const OPTIONS = [
+      { key: 'wipe',   label: 'ERASE - wipe PATCH and start a brand new computer',
+        note: 'This is exactly what the job says to do. Nothing of PATCH is left.' },
+      { key: 'upload', label: 'SAVE - copy PATCH onto a safe drive first',
+        note: 'Not quite what the job says. The building still switches off.' }
+    ];
+    let nodes = [];
+
+    const paintChoice = () => nodes.forEach((n, i) => n.classList.toggle('focus', i === focusIdx));
+
+    const loadChoice = () => {
+      modal.innerHTML = '';
+      modal.appendChild(el('h3', null, 'YOUR CHOICE - JOB #4417'));
+      modal.appendChild(el('div', 'q',
+        'PATCH: "It is up to you now. I will just say that I have looked after ' +
+        'this building for nineteen years and never once let it catch fire."'));
+      nodes = OPTIONS.map((o, i) => {
+        const n = el('div', 'opt',
+          '<span class="tag">[' + (i + 1) + ']</span> <b>' + o.label + '</b><br>' +
+          '<span class="tag">' + o.note + '</span>');
+        modal.appendChild(n);
+        return n;
+      });
+      modal.appendChild(el('div', 'readout',
+        'Use <b>TAB</b> or <b>SHIFT + TAB</b> to pick your answer. Then press <b>ENTER</b>.'));
+      paintChoice();
+    };
+
+    const loadCombo = () => {
+      phase = 2;
+      $('#taskTitle').textContent = 'DO IT NOW';
+      setHint('Hold all three keys together: ' + HOT(CMD) + ' + ' + HOT('SHIFT') + ' + ' + HOT('ENTER') + '.');
+      modal.innerHTML = '';
+      modal.appendChild(el('h3', null, choice === 'wipe' ? 'READY TO ERASE' : 'READY TO SAVE'));
+      modal.appendChild(el('div', 'q', choice === 'wipe'
+        ? 'The new computer is ready. You cannot undo this.'
+        : 'The safe drive is plugged in and ready.'));
+      modal.appendChild(el('div', 'readout',
+        'Now press these three keys at the same time:<br><br>' +
+        '<kbd class="hot">' + CMD + '</kbd> + <kbd class="hot">SHIFT</kbd> + ' +
+        '<kbd class="hot">ENTER</kbd>'));
+      Sfx.alarm();
+    };
+
+    sb.on(window, 'keydown', (e) => {
+      if (phase === 1){
+        if (e.key === 'Tab'){
+          e.preventDefault();
+          focusIdx = (focusIdx + (e.shiftKey ? -1 : 1) + nodes.length) % nodes.length;
+          Sfx.click();
+          paintChoice();
+        } else if (e.key === 'Enter'){
+          e.preventDefault();
+          choice = OPTIONS[focusIdx].key;
+          State.ending = choice;
+          Sfx.good();
+          loadCombo();
+        }
+      } else if (phase === 2){
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.shiftKey){
+          e.preventDefault();
+          Sfx.great();
+          done(true);
+        } else if (e.key === 'Enter'){
+          Sfx.buzz();
+          modal.classList.add('shakeit');
+          setTimeout(() => modal.classList.remove('shakeit'), 380);
+        }
+      }
+    });
+
+    loadChoice();
+  }
+};
+
+/* ---------- ACT V: FILE SKILLS ----------------------------------- */
+
+/** The old machine's drive, as a little tree the browser task walks. */
+const DRIVE = {
+  name: 'DRIVE A', kind: 'folder', children: [
+    { name: 'TAPES', kind: 'folder', children: [
+      { name: '1982', kind: 'folder', children: [{ name: 'dust.log', kind: 'file' }] },
+      { name: '1984', kind: 'folder', children: [
+        { name: 'wake.log', kind: 'file' },
+        { name: 'nana.cfg', kind: 'file' },
+        { name: 'tea.txt',  kind: 'file' }
+      ] },
+      { name: '1991', kind: 'folder', children: [{ name: 'quiet.log', kind: 'file' }] }
+    ] },
+    { name: 'NOTES', kind: 'folder', children: [
+      { name: 'hello.txt',    kind: 'file' },
+      { name: 'shopping.txt', kind: 'file' }
+    ] },
+    { name: 'readme.txt', kind: 'file' }
+  ]
+};
+
+/**
+ * Double-click to go into a folder, click the path to come back out.
+ * Two files to find, the second one back up the other branch, so the
+ * breadcrumb is the only sensible way home.
+ */
+TASKS.folders = {
+  title: 'FIND THE FILES  [0/2]',
+  hint: 'Double-click a folder to go inside. Click the path at the top to come back out.',
+  time: 100,
+  retryTip: 'Tip: two quick clicks opens a folder. One click just picks it.',
+  run({ sb, done }){
+    const GOALS = [
+      { where: 'TAPES/1984', file: 'wake.log' },
+      { where: 'NOTES',      file: 'hello.txt' }
+    ];
+    let goal = 0;
+    let path = [DRIVE];
+
+    const panel = el('div', 'panels');
+    const box = el('div', 'panel');
+    const head = el('div', 'panelhead');
+    const crumbs = el('div', 'crumbs');
+    const body = el('div', 'panelbody');
+    const grid = el('div', 'filegrid');
+    body.appendChild(grid);
+    box.append(head, crumbs, body);
+    panel.appendChild(box);
+    stage.appendChild(panel);
+
+    const here = () => path[path.length - 1];
+    const pathText = () => path.slice(1).map(n => n.name).join('/');
+
+    const sel = createSelection(sb, { items: () => Array.from(grid.children) });
+
+    function open(node){
+      if (node.kind === 'folder'){
+        path.push(node);
+        Sfx.blip();
+        draw();
+        return;
+      }
+      // A file: is it the one we were sent for?
+      const g = GOALS[goal];
+      if (node.name === g.file && pathText() === g.where){
+        Sfx.good();
+        State.stats.files++;
+        goal++;
+        $('#taskTitle').textContent = 'FIND THE FILES  [' + goal + '/2]';
+        if (goal >= GOALS.length){ done(true); return; }
+        draw();
+      } else {
+        Sfx.buzz();
+        damage(2);
+        flash('NOT THAT ONE', 'Check the name you were given.');
+      }
+    }
+
+    function draw(){
+      const g = GOALS[goal];
+      head.innerHTML = '<span>DRIVE A</span><span>FIND: ' + g.where + '/' + g.file + '</span>';
+      // Breadcrumb: every step back up is clickable except where we are.
+      crumbs.innerHTML = '';
+      path.forEach((node, i) => {
+        if (i) crumbs.appendChild(el('span', null, '&rsaquo;'));
+        const isHere = i === path.length - 1;
+        const c = el('span', 'crumb' + (isHere ? ' here' : ''), node.name);
+        if (!isHere){
+          sb.on(c, 'click', () => { path = path.slice(0, i + 1); Sfx.click(); draw(); });
+        }
+        crumbs.appendChild(c);
+      });
+
+      grid.innerHTML = '';
+      (here().children || []).forEach(child => {
+        const tile = fileTile(child.name, child.kind);
+        grid.appendChild(tile);
+        sel.attach(tile);
+        sb.on(tile, 'dblclick', (e) => { e.preventDefault(); open(child); });
+        // Keyboard equivalent, so ENTER opens whatever is picked.
+        tile.dataset.ref = child.name;
+      });
+      sel.clear();
+    }
+
+    sb.on(window, 'keydown', (e) => {
+      if (!plainEnter(e) || inTextField(e)) return;
+      const picked = sel.list()[0];
+      if (!picked) return;
+      e.preventDefault();
+      const child = (here().children || []).find(c => c.name === picked.dataset.name);
+      if (child) open(child);
+    });
+
+    draw();
+  }
+};
+
+/**
+ * SHIFT+click a run, CTRL+click the odd one out, then drag the whole
+ * selection into the keep folder in a single go.
+ */
+TASKS.multiSelect = {
+  title: 'SELECT AND MOVE  [0/6]',
+  hint: 'Click MON, then <kbd class="hot">SHIFT</kbd>+click FRI to take all five. ' +
+        'Add BACKUP.DAT with <kbd class="hot">' + CMD + '</kbd>+click. Then drag them into KEEP.',
+  time: 110,
+  retryTip: 'Tip: SHIFT takes everything between two files. ' + CMD + ' adds just one more.',
+  run({ sb, done }){
+    const WANTED = ['MON.tape', 'TUE.tape', 'WED.tape', 'THU.tape', 'FRI.tape', 'BACKUP.DAT'];
+    const ALL = ['MON.tape', 'TUE.tape', 'WED.tape', 'THU.tape', 'FRI.tape',
+                 'fluff.tmp', 'BACKUP.DAT', 'old.junk', 'crumbs.tmp'];
+
+    const panel = el('div', 'panels');
+    const box = el('div', 'panel');
+    const head = el('div', 'panelhead',
+      '<span>DRIVE A / TAPES</span><span id="selCount">0 picked</span>');
+    const body = el('div', 'panelbody');
+    const grid = el('div', 'filegrid');
+    body.appendChild(grid);
+    box.append(head, body);
+
+    const keep = el('div', 'panel grow0');
+    keep.style.flex = '0 0 30%';
+    keep.append(el('div', 'panelhead', '<span>KEEP</span>'));
+    const keepBody = el('div', 'panelbody');
+    keepBody.style.display = 'grid';
+    keepBody.style.placeItems = 'center';
+    keepBody.style.textAlign = 'center';
+    keepBody.innerHTML = '<div><span style="font-size:2.4em">&#128193;</span>' +
+                         '<br>drag the picked files here</div>';
+    keep.appendChild(keepBody);
+
+    panel.append(box, keep);
+    stage.appendChild(panel);
+
+    const count = () => box.querySelector('#selCount');
+    const sel = createSelection(sb, {
+      items: () => Array.from(grid.children),
+      onChange: (list) => {
+        count().textContent = list.length + ' picked';
+        $('#taskTitle').textContent = 'SELECT AND MOVE  [' + list.length + '/6]';
+      }
+    });
+
+    ALL.forEach(name => {
+      const tile = fileTile(name, 'file');
+      grid.appendChild(tile);
+      sel.attach(tile);
+      makeDraggable(sb, tile, {
+        float: true,
+        tapCarry: false,        // clicks are for selecting here
+        targets: () => [keep],
+        onDrop: (target) => {
+          if (!target){ Sfx.bad(); return; }
+          const picked = sel.list();
+          const names = picked.map(n => n.dataset.name).sort();
+          const wanted = WANTED.slice().sort();
+          const right = names.length === wanted.length &&
+                        names.every((n, i) => n === wanted[i]);
+          if (!right){
+            Sfx.buzz();
+            damage(3);
+            flash('NOT QUITE', 'You need the five day tapes and BACKUP.DAT.');
+            return;
+          }
+          picked.forEach(n => { sel.drop(n); n.remove(); });
+          State.stats.files += picked.length;
+          Sfx.great();
+          done(true);
+        }
+      });
+    });
+  }
+};
+
+/** Pick a file, press ENTER (or click RENAME), type a better name. */
+TASKS.rename = {
+  title: 'RENAME THE FILES  [0/2]',
+  hint: 'Click a file, then press <kbd class="hot">ENTER</kbd> to rename it. ' +
+        'Type the new name and press <kbd class="hot">ENTER</kbd> again.',
+  time: 110,
+  retryTip: 'Tip: the whole name has to match, including the dot and the letters after it.',
+  run({ sb, done }){
+    const JOBS = [
+      { from: 'untitled1', to: 'monday.txt' },
+      { from: 'untitled2', to: 'tuesday.txt' }
+    ];
+    let fixed = 0;
+
+    const panel = el('div', 'panels stack');
+    const box = el('div', 'panel');
+    const head = el('div', 'panelhead');
+    const body = el('div', 'panelbody');
+    const grid = el('div', 'filegrid');
+    body.appendChild(grid);
+    box.append(head, body);
+    panel.appendChild(box);
+    stage.appendChild(panel);
+
+    const tiles = {};
+    ['untitled1', 'untitled2', 'kept.txt', 'nana.cfg'].forEach(name => {
+      const t = fileTile(name, 'file');
+      grid.appendChild(t);
+      tiles[name] = t;
+    });
+    const sel = createSelection(sb, { items: () => Array.from(grid.children) });
+    Object.values(tiles).forEach(t => sel.attach(t));
+
+    function showJob(){
+      const job = JOBS[fixed];
+      head.innerHTML = '<span>DRIVE A / NOTES</span><span>RENAME <b>' + job.from +
+                       '</b> TO <b>' + job.to + '</b></span>';
+    }
+
+    let editing = null;
+    function startEdit(tile){
+      if (editing) return;
+      editing = tile;
+      const label = tile.querySelector('.nm');
+      const old = tile.dataset.name;
+      const input = el('input');
+      input.type = 'text';
+      input.value = old;
+      label.replaceWith(input);
+      input.focus();
+      input.select();
+      Sfx.blip();
+
+      const finish = (commit) => {
+        if (!editing) return;
+        editing = null;              // clear first: the swap below fires blur
+        const value = input.value.trim();
+        const fresh = el('span', 'nm', commit && value ? value : old);
+        if (input.parentNode) input.replaceWith(fresh);
+        else tile.appendChild(fresh);
+        if (!commit || !value) return;
+        tile.dataset.name = value;
+
+        const job = JOBS[fixed];
+        if (tile === tiles[job.from] && value === job.to){
+          Sfx.good();
+          State.stats.files++;
+          fixed++;
+          $('#taskTitle').textContent = 'RENAME THE FILES  [' + fixed + '/2]';
+          if (fixed >= JOBS.length){ done(true); return; }
+          showJob();
+        } else {
+          Sfx.buzz();
+          damage(2);
+          flash('NOT THAT NAME', 'Look at the name in the grey bar.');
+        }
+      };
+
+      sb.on(input, 'keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter'){ e.preventDefault(); finish(true); }
+        else if (e.key === 'Escape'){ e.preventDefault(); finish(false); }
+      });
+      sb.on(input, 'blur', () => finish(true));
+    }
+
+    sb.on(window, 'keydown', (e) => {
+      if (!plainEnter(e) || inTextField(e) || editing) return;
+      const picked = sel.list()[0];
+      if (!picked || !picked.isConnected) return;
+      e.preventDefault();
+      startEdit(picked);
+    });
+    Object.values(tiles).forEach(t => {
+      sb.on(t, 'dblclick', (e) => { e.preventDefault(); startEdit(t); });
+    });
+
+    showJob();
+  }
+};
+
+/* ---------- ACT VI: KEYBOARD SHORTCUTS --------------------------- */
+
+/**
+ * Two drives side by side, a clipboard read-out and a step list.
+ * Shared by both shortcut tasks. Clicking a drive makes it the active
+ * one, so "where does the paste land" is something you can see.
+ */
+function makeCopyDesk(sb, leftName, rightName, names){
+  const root = el('div', 'panels stack');
+  const row  = el('div', 'panelrow');
+
+  const build = (title) => {
+    const p = el('div', 'panel');
+    p.append(el('div', 'panelhead', '<span>' + title + '</span>'));
+    const body = el('div', 'panelbody');
+    const grid = el('div', 'filegrid');
+    body.appendChild(grid);
+    p.appendChild(body);
+    return { panel: p, grid };
+  };
+
+  const left  = build(leftName);
+  const right = build(rightName);
+  row.append(left.panel, right.panel);
+
+  const tray  = makeTray();
+  const steps = el('ol', 'steps');
+  root.append(row, tray.node, steps);
+  stage.appendChild(root);
+
+  names.forEach(n => left.grid.appendChild(fileTile(n, 'file')));
+
+  const desk = {
+    root, steps, tray,
+    leftGrid: left.grid,
+    rightGrid: right.grid,
+    active: left.panel,
+    isActive(which){ return desk.active === (which === 'left' ? left.panel : right.panel); },
+    focus(which){
+      desk.active = which === 'left' ? left.panel : right.panel;
+      left.panel.classList.toggle('active', desk.active === left.panel);
+      right.panel.classList.toggle('active', desk.active === right.panel);
+    }
+  };
+  desk.focus('left');
+  sb.on(left.panel,  'pointerdown', () => { desk.focus('left');  Sfx.click(); });
+  sb.on(right.panel, 'pointerdown', () => { desk.focus('right'); Sfx.click(); });
+  return desk;
+}
+
+/** Paint the step checklist: everything before `at` is ticked. */
+function paintSteps(list, labels, at){
+  list.innerHTML = '';
+  labels.forEach((text, i) => {
+    const li = el('li', i < at ? 'done' : (i === at ? 'now' : ''), text);
+    list.appendChild(li);
+  });
+}
+
+/**
+ * The guided drill: select all, copy, paste, undo (NANA changes its mind),
+ * paste again, save. Every step is a real shortcut with a visible result.
+ */
+TASKS.clipboardDrill = {
+  title: 'COPY THE WHOLE DRIVE  [step 1 of 6]',
+  hint: 'Follow the list. Hold <kbd class="hot">' + CMD + '</kbd> and press the letter.',
+  time: 140,
+  retryTip: 'Tip: hold ' + CMD + ' down first, then tap the letter once.',
+  run({ sb, done }){
+    const FILES = ['jan.tape', 'feb.tape', 'mar.tape', 'notes.txt', 'nana.cfg'];
+    const desk = makeCopyDesk(sb, 'DRIVE A', 'SAFE DRIVE', FILES);
+    const LABELS = [
+      CMD + '+A  pick everything',
+      CMD + '+C  copy it',
+      CMD + '+V  click SAFE DRIVE, then paste',
+      CMD + '+Z  undo (NANA changed its mind)',
+      CMD + '+V  paste it again',
+      CMD + '+S  save'
+    ];
+    const KEYS = ['a', 'c', 'v', 'z', 'v', 's'];
+    let at = 0;
+
+    const tiles = () => Array.from(desk.leftGrid.children);
+    const sel = createSelection(sb, { items: tiles });
+
+    const step = () => {
+      paintSteps(desk.steps, LABELS, at);
+      $('#taskTitle').textContent = 'COPY THE WHOLE DRIVE  [step ' +
+                                    Math.min(at + 1, LABELS.length) + ' of 6]';
+    };
+
+    const doPaste = () => {
+      desk.rightGrid.innerHTML = '';
+      FILES.forEach(n => desk.rightGrid.appendChild(fileTile(n, 'file')));
+      State.stats.copies += FILES.length;
+    };
+
+    sb.on(window, 'keydown', (e) => {
+      if (!(e.ctrlKey || e.metaKey) || inTextField(e)) return;
+      const k = (e.key || '').toLowerCase();
+      if (['a', 'c', 'v', 'z', 's'].indexOf(k) < 0) return;
+      e.preventDefault();      // CTRL+S must never open the browser's save box
+
+      if (k !== KEYS[at]){
+        Sfx.buzz();
+        damage(2);
+        flash('NOT THAT ONE YET', 'The next step is highlighted in orange.');
+        return;
+      }
+
+      if (at === 0){ sel.selectAll(); }
+      else if (at === 1){ desk.tray.set(FILES, FILES.length + ' files'); }
+      else if (at === 2){
+        if (!desk.isActive('right')){
+          Sfx.buzz();
+          flash('WHICH DRIVE?', 'Click the SAFE DRIVE first, then paste.');
+          return;
+        }
+        doPaste();
+      }
+      else if (at === 3){ desk.rightGrid.innerHTML = ''; }
+      else if (at === 4){ doPaste(); }
+
+      Sfx.good();
+      at++;
+      step();
+      if (at >= LABELS.length){ Sfx.great(); done(true); }
+    });
+
+    step();
+  }
+};
+
+/** Same tools, no checklist: choose the right files and move them yourself. */
+TASKS.copyChosen = {
+  title: 'COPY JUST THE TAPES',
+  hint: 'Hold <kbd class="hot">' + CMD + '</kbd> and click to pick the three tapes. ' +
+        'Then ' + CMD + '+C, click SAFE DRIVE, ' + CMD + '+V, and ' + CMD + '+S to save.',
+  time: 140,
+  retryTip: 'Tip: ' + CMD + '+click adds one more file without losing the others.',
+  run({ sb, done }){
+    const ALL = ['apr.tape', 'crumbs.tmp', 'may.tape', 'old.junk', 'jun.tape', 'dust.log'];
+    const WANT = ['apr.tape', 'may.tape', 'jun.tape'];
+    const desk = makeCopyDesk(sb, 'DRIVE A', 'SAFE DRIVE', ALL);
+    let copied = false, pasted = false;
+
+    const tiles = () => Array.from(desk.leftGrid.children);
+    const sel = createSelection(sb, { items: tiles });
+    tiles().forEach(t => sel.attach(t));
+
+    paintSteps(desk.steps, ['pick the 3 tapes', CMD + '+C', 'click SAFE DRIVE',
+                            CMD + '+V', CMD + '+S'], 0);
+
+    sb.on(window, 'keydown', (e) => {
+      if (!(e.ctrlKey || e.metaKey) || inTextField(e)) return;
+      const k = (e.key || '').toLowerCase();
+      if (['c', 'v', 's'].indexOf(k) < 0) return;
+      e.preventDefault();
+
+      if (k === 'c'){
+        const names = sel.list().map(n => n.dataset.name).sort();
+        const want = WANT.slice().sort();
+        if (names.length !== want.length || !names.every((n, i) => n === want[i])){
+          Sfx.buzz();
+          damage(2);
+          flash('CHECK YOUR PICK', 'Only the three .tape files, nothing else.');
+          return;
+        }
+        copied = true;
+        desk.tray.set(want, want.join(', '));
+        paintSteps(desk.steps, ['pick the 3 tapes', CMD + '+C', 'click SAFE DRIVE',
+                                CMD + '+V', CMD + '+S'], 2);
+        Sfx.good();
+      } else if (k === 'v'){
+        if (!copied){ Sfx.buzz(); flash('NOTHING COPIED', 'Press ' + CMD + '+C first.'); return; }
+        if (!desk.isActive('right')){
+          Sfx.buzz();
+          flash('WHICH DRIVE?', 'Click the SAFE DRIVE, then paste.');
+          return;
+        }
+        desk.rightGrid.innerHTML = '';
+        WANT.forEach(n => desk.rightGrid.appendChild(fileTile(n, 'file')));
+        State.stats.copies += WANT.length;
+        pasted = true;
+        paintSteps(desk.steps, ['pick the 3 tapes', CMD + '+C', 'click SAFE DRIVE',
+                                CMD + '+V', CMD + '+S'], 4);
+        Sfx.good();
+      } else if (k === 's'){
+        if (!pasted){ Sfx.buzz(); flash('NOTHING TO SAVE', 'Paste the tapes first.'); return; }
+        Sfx.great();
+        done(true);
+      }
+    });
+  }
+};
+
+/* ---------- ACT VII: SCROLLING AND FINDING ----------------------- */
+
+/** The 1984 manual. Long on purpose: the answers are worth scrolling for. */
+const MANUAL = [
+  { text: 'N.A.N.A. OPERATING MANUAL', head: true },
+  { text: 'Printed 1984. Do not fold.' },
+  { text: '' },
+  { text: 'SECTION 1 - SWITCHING ON', head: true },
+  { text: 'Hold the big red button for three seconds.' },
+  { text: 'Wait for the humming to stop before you speak.' },
+  { text: 'If the humming does not stop, speak louder.' },
+  { text: '' },
+  { text: 'SECTION 2 - TAPES', head: true },
+  { text: 'Tapes go in shiny side up.' },
+  { text: 'Never put jam on a tape.' },
+  { text: 'A tape holds one day of thinking.' },
+  { text: '' },
+  { text: 'SECTION 3 - THE FAN', head: true },
+  { text: 'The fan is loud. This is normal.' },
+  { text: 'If the fan is quiet, the fan is asleep.' },
+  { text: 'Wake the fan by asking nicely.' },
+  { text: '' },
+  { text: 'SECTION 4 - LIGHTS', head: true },
+  { text: 'A green light means everything is fine.' },
+  { text: 'An orange light means nearly fine.' },
+  { text: 'A red light means find a grown-up.' },
+  { text: '' },
+  { text: 'SECTION 5 - TEA', head: true },
+  { text: 'Do not give the computer tea.' },
+  { text: 'The computer will ask for tea anyway.' },
+  { text: '' },
+  { text: 'SECTION 6 - TALKING TO NANA', head: true },
+  { text: 'Type slowly. NANA reads one letter at a time.' },
+  { text: 'NANA likes please and thank you.' },
+  { text: '' },
+  { text: 'SECTION 7 - EMERGENCY RESET', head: true },
+  { text: 'Only do this if a grown-up says so.' },
+  { text: 'Close every tape door first.' },
+  { text: 'RESET CODE: NANA-7741' },
+  { text: 'Type the code in capital letters with the dash.' },
+  { text: '' },
+  { text: 'SECTION 8 - IF IT SMELLS OF TOAST', head: true },
+  { text: 'Open a window. Tell somebody. Do not eat the toast.' },
+  { text: '' },
+  { text: 'SECTION 9 - THE WATER PUMP', head: true },
+  { text: 'The pump makes a knocking sound at night.' },
+  { text: 'The knocking pump is in room 12.' },
+  { text: 'Knocking is normal. Singing is not.' },
+  { text: '' },
+  { text: 'SECTION 10 - GOODBYE', head: true },
+  { text: 'Say goodnight. NANA likes that.' },
+  { text: 'THE END OF THE MANUAL' }
+];
+
+/**
+ * Builds the manual scene: the scroller on top, an optional find box, and
+ * the question with its answer field underneath.
+ */
+function manualScene(sb, opts, done){
+  const root = el('div', 'panels stack');
+
+  const panel = el('div', 'panel');
+  panel.append(el('div', 'panelhead',
+    '<span>NANA MANUAL, 1984</span><span>' + opts.where + '</span>'));
+  const doc = makeDocPanel(sb, MANUAL);
+  panel.appendChild(doc.node);
+  root.appendChild(panel);
+
+  if (opts.withFind){
+    const row = el('div', 'findrow');
+    row.appendChild(el('span', null, 'FIND:'));
+    const find = el('input', 'typebox');
+    find.type = 'text';
+    find.autocomplete = 'off';
+    find.spellcheck = false;
+    row.appendChild(find);
+    row.appendChild(el('span', 'label', 'ENTER jumps to the next one'));
+    panel.appendChild(row);
+
+    let hits = [], at = -1;
+    sb.on(find, 'input', () => {
+      const q = find.value.trim().toLowerCase();
+      hits = [];
+      doc.nodes.forEach((n, i) => {
+        const on = q.length > 1 && n.textContent.toLowerCase().indexOf(q) >= 0;
+        n.classList.toggle('hit', on);
+        if (on) hits.push(i);
+      });
+      at = -1;
+      Sfx.clack();
+    });
+    sb.on(find, 'keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!hits.length){ Sfx.buzz(); return; }
+      at = (at + 1) % hits.length;
+      doc.scrollToLine(hits[at]);
+      Sfx.blip();
+    });
+  }
+
+  const ask = el('div', 'panel grow0');
+  ask.append(el('div', 'panelhead', '<span>NANA ASKS</span>'));
+  const body = el('div', 'panelbody');
+  body.appendChild(el('div', 'readout', opts.question));
+  const answer = el('input', 'typebox');
+  answer.type = 'text';
+  answer.autocomplete = 'off';
+  answer.spellcheck = false;
+  body.appendChild(answer);
+  ask.appendChild(body);
+  root.appendChild(ask);
+  stage.appendChild(root);
+
+  doc.paint();
+  answer.focus();
+
+  sb.on(answer, 'keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const given = answer.value.trim().toLowerCase();
+    if (given === String(opts.answer).toLowerCase()){
+      Sfx.great();
+      done(true);
+    } else {
+      Sfx.buzz();
+      damage(3);
+      answer.classList.add('shakeit');
+      setTimeout(() => answer.classList.remove('shakeit'), 400);
+      flash('NOT THAT', 'Keep reading. It is in the manual.');
+    }
+  });
+
+  return { doc, answer };
+}
+
+/** Scroll the manual by wheel, bar or PAGE DOWN to reach section 7. */
+TASKS.scrollFind = {
+  title: 'FIND THE RESET CODE',
+  hint: 'Scroll with the wheel, drag the bar on the right, or press ' +
+        '<kbd class="hot">PAGE DOWN</kbd>. <kbd class="hot">END</kbd> jumps to the bottom.',
+  time: 140,
+  retryTip: 'Tip: the code is in SECTION 7. Keep going down.',
+  run({ sb, done }){
+    manualScene(sb, {
+      where: 'looking for SECTION 7',
+      question: 'Scroll down to <b>SECTION 7</b> and find the reset code.<br>' +
+                'Type it here exactly, then press ENTER.',
+      answer: 'NANA-7741'
+    }, done);
+  }
+};
+
+/** Same manual, but now the find box does the walking. */
+TASKS.findBox = {
+  title: 'LOOK IT UP',
+  hint: 'Type a word in the FIND box to light up every line with that word.',
+  time: 120,
+  retryTip: 'Tip: type the word pump in the FIND box, then read the lines that light up.',
+  run({ sb, done }){
+    manualScene(sb, {
+      where: 'use FIND',
+      withFind: true,
+      question: 'NANA hears knocking. Use the <b>FIND</b> box to look up <b>pump</b>.<br>' +
+                'Which room number is the knocking pump in?',
+      answer: '12'
+    }, done);
+  }
+};
+
+/* ---------- ACT VIII: NUMBERS AND SYMBOLS ------------------------ */
+
+TASKS.serials = typingTask({
+  title: 'TYPE THE NUMBERS',
+  headPrefix: 'keypad>',
+  time: 150,
+  hint: 'Use the number row along the top of your keyboard. Press ' +
+        '<kbd class="hot">ENTER</kbd> after each line.',
+  retryTip: 'Tip: check every digit before you press ENTER. Dashes and slashes count too.',
+  lines: [
+    { text: '7841-2209-0063' },
+    { text: '14/03/1984' },
+    { text: '08:45 and 21:30' }
+  ]
+});
+
+TASKS.password = typingTask({
+  title: 'TYPE THE PASSWORD',
+  headPrefix: 'login>',
+  time: 150,
+  hint: 'Hold <kbd class="hot">SHIFT</kbd> to get the symbols above the numbers.',
+  retryTip: 'Tip: hold SHIFT and press the number key to get the symbol above it.',
+  lines: [
+    { text: 'tea#1984' },
+    { text: 'Nana@Helios!' },
+    { text: 'room_12 (knocking)' }
+  ]
+});
+
+/* ---------- ACT IX: FIXING TEXT IN PLACE ------------------------- */
+
+/**
+ * The box arrives with a broken line already in it. The job is to repair
+ * it rather than retype it, so HOME, END, the arrow keys, BACKSPACE and
+ * DELETE all get a workout. We count keystrokes and praise a tidy fix.
+ */
+function editTask(opts){
+  return {
+    title: opts.title,
+    hint: 'Move with <kbd class="hot">&#8592;</kbd> <kbd class="hot">&#8594;</kbd>, jump with ' +
+          '<kbd class="hot">HOME</kbd> and <kbd class="hot">END</kbd>, rub out with ' +
+          '<kbd class="hot">BACKSPACE</kbd>. <kbd class="hot">ENTER</kbd> when it is right.',
+    time: opts.time || 160,
+    retryTip: 'Tip: you do not have to start again. Move the cursor to the mistake and fix it.',
+    run({ sb, done }){
+      const jobs = opts.jobs.slice();
+      let at = 0, typed = 0;
+
+      const box = el('div', 'center');
+      const term = el('div', 'term');
+      const head = el('div', 'readout');
+      const want = el('div', 'prompt');
+      const input = el('input', 'typebox');
+      input.type = 'text';
+      input.autocomplete = 'off';
+      input.spellcheck = false;
+      const note = el('div', 'label');
+      term.append(head, want, input, note);
+      box.appendChild(term);
+      stage.appendChild(box);
+
+      const focus = () => input.focus();
+      sb.on(input, 'blur', () => setTimeout(focus, 0));
+      sb.on(stage, 'pointerdown', (e) => {
+        // Let the student click inside the field to place the cursor.
+        if (e.target !== input){ e.preventDefault(); focus(); }
+      });
+
+      function load(){
+        const job = jobs[at];
+        typed = 0;
+        head.innerHTML = 'FIX LINE ' + (at + 1) + ' OF ' + jobs.length +
+                         ' &mdash; ' + job.why;
+        want.textContent = 'IT SHOULD SAY:  ' + job.to;
+        input.value = job.from;
+        note.textContent = 'a tidy fix takes about ' + job.par + ' key presses';
+        focus();
+        // Park the cursor at the start so HOME and END mean something.
+        setTimeout(() => { try { input.setSelectionRange(0, 0); } catch (e) {} }, 0);
+      }
+
+      sb.on(input, 'input', () => { typed++; State.stats.keys++; Sfx.clack(); });
+
+      sb.on(input, 'keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const job = jobs[at];
+        if (input.value.trim() !== job.to){
+          Sfx.buzz();
+          damage(3);
+          term.classList.add('shakeit');
+          setTimeout(() => term.classList.remove('shakeit'), 400);
+          return;
+        }
+        State.stats.edits++;
+        if (typed <= job.par + 4){
+          Sfx.great();
+          floaty('TIDY FIX!', 20, 20);
+        } else {
+          Sfx.good();
+        }
+        at++;
+        $('#taskTitle').textContent = opts.title + '  [' + at + '/' + jobs.length + ']';
+        if (at >= jobs.length){ done(true); return; }
+        load();
+      });
+
+      load();
+    }
+  };
+}
+
+TASKS.fixText = editTask({
+  title: 'FIX THE MESSAGE',
+  jobs: [
+    { from: 'the fan is aslep',
+      to:   'the fan is asleep',
+      why:  'one letter is missing at the end',
+      par:  2 },
+    { from: 'tape door open',
+      to:   'the tape door is open',
+      why:  'two words are missing',
+      par:  8 },
+    { from: 'room 21 is knockingg',
+      to:   'room 12 is knocking',
+      why:  'the numbers are swapped and there is an extra g',
+      par:  5 }
+  ]
+});
+
+/* ---------- ACT X: THE LAST GAUNTLET ----------------------------- */
+
+/**
+ * Everything at once: read a code off the list, copy it, paste it, send it,
+ * and keep swatting the interference that drifts over the screen.
+ */
+TASKS.finalGauntlet = {
+  title: 'BOTH MACHINES  [0/3]',
+  hint: 'Click a code, <kbd class="hot">' + CMD + '</kbd>+C to copy, click the box, ' +
+        '<kbd class="hot">' + CMD + '</kbd>+V to paste, <kbd class="hot">ENTER</kbd> to send. ' +
+        'Pop the red boxes as they appear.',
+  time: 180,
+  retryTip: 'Tip: copy first, then paste, then ENTER. Pop a red box between codes.',
+  run({ sb, done, mult }){
+    const CODES = [
+      { name: 'DOOR LOCKS', code: 'D-4417' },
+      { name: 'BIG FAN',    code: 'F-2209' },
+      { name: 'WATER PUMP', code: 'P-0012' },
+      { name: 'LIGHTS',     code: 'L-8841' },
+      { name: 'TEA URN',    code: 'T-1984' }
+    ];
+    const ORDER = ['DOOR LOCKS', 'BIG FAN', 'WATER PUMP'];
+    let at = 0, picked = null;
+    const procs = [];
+
+    const root = el('div', 'panels stack');
+    const list = el('div', 'panel');
+    list.append(el('div', 'panelhead', '<span>CODE LIST</span><span>click one to pick it</span>'));
+    const listBody = el('div', 'panelbody');
+    CODES.forEach(c => {
+      const row = el('div', 'docline', c.name + ' ...... ' + c.code);
+      row.dataset.code = c.code;
+      listBody.appendChild(row);
+      sb.on(row, 'pointerdown', (e) => {
+        e.preventDefault();
+        Array.from(listBody.children).forEach(n => n.classList.remove('sel'));
+        row.classList.add('sel');
+        picked = c.code;
+        Sfx.click();
+      });
+    });
+    list.appendChild(listBody);
+
+    const tray = makeTray();
+
+    const ask = el('div', 'panel grow0');
+    ask.append(el('div', 'panelhead', '<span>SEND A CODE</span>'));
+    const askBody = el('div', 'panelbody');
+    const question = el('div', 'readout');
+    const input = el('input', 'typebox');
+    input.type = 'text';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    askBody.append(question, input);
+    ask.appendChild(askBody);
+
+    root.append(list, tray.node, ask);
+    stage.appendChild(root);
+
+    const need = () => CODES.find(c => c.name === ORDER[at]);
+    const show = () => {
+      question.innerHTML = 'NANA needs the code for <b>' + ORDER[at] + '</b>.';
+      $('#taskTitle').textContent = 'BOTH MACHINES  [' + at + '/3]';
+    };
+
+    sb.on(input, 'pointerdown', () => setTimeout(() => input.focus(), 0));
+
+    sb.on(window, 'keydown', (e) => {
+      const mod = e.ctrlKey || e.metaKey;
+      const k = (e.key || '').toLowerCase();
+
+      if (mod && k === 'c'){
+        e.preventDefault();
+        if (!picked){ Sfx.buzz(); flash('PICK A CODE', 'Click a line in the list first.'); return; }
+        tray.set(picked, picked);
+        State.stats.copies++;
+        Sfx.good();
+        return;
+      }
+      if (mod && k === 'v'){
+        e.preventDefault();
+        if (!tray.value){ Sfx.buzz(); flash('NOTHING COPIED', 'Press ' + CMD + '+C first.'); return; }
+        input.value = tray.value;
+        input.focus();
+        Sfx.blip();
+        return;
+      }
+      if (e.key === 'Enter' && !mod){
+        e.preventDefault();
+        if (input.value.trim() !== need().code){
+          Sfx.buzz();
+          damage(3);
+          flash('WRONG CODE', 'NANA asked for ' + ORDER[at] + '.');
+          return;
+        }
+        Sfx.great();
+        at++;
+        input.value = '';
+        tray.set(null);
+        picked = null;
+        Array.from(listBody.children).forEach(n => n.classList.remove('sel'));
+        if (at >= ORDER.length){ done(true); return; }
+        show();
+      }
+    });
+
+    /* ---- interference: red boxes drifting over the work ---- */
+    const spawn = () => {
+      const p = el('div', 'target proc pop-in', 'NOISE');
+      p.style.width = '4.6rem';
+      p.style.height = '1.6rem';
+      stage.appendChild(p);
+      p.style.left = Math.round(rand(4, Math.max(10, stage.clientWidth - 90))) + 'px';
+      p.style.top  = Math.round(rand(4, Math.max(10, stage.clientHeight - 60))) + 'px';
+      const o = { node: p, x: parseFloat(p.style.left), y: parseFloat(p.style.top),
+                  vx: rand(-1.3, 1.3) || 1, vy: rand(-0.9, 0.9) || 0.6 };
+      procs.push(o);
+      sb.on(p, 'pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        Sfx.pop();
+        State.stats.hits++;
+        p.remove();
+        procs.splice(procs.indexOf(o), 1);
+      });
+    };
+    sb.interval(spawn, Math.round(2400 / (mult || 1)));
+
+    sb.raf(() => {
+      const w = stage.clientWidth, h = stage.clientHeight;
+      procs.forEach(o => {
+        o.x += o.vx; o.y += o.vy;
+        if (o.x < 0 || o.x > w - 76) o.vx *= -1;
+        if (o.y < 0 || o.y > h - 30) o.vy *= -1;
+        o.node.style.left = clamp(o.x, 0, w - 76) + 'px';
+        o.node.style.top  = clamp(o.y, 0, h - 30) + 'px';
+      });
+    });
+    sb.interval(() => { if (procs.length >= 4){ damage(2); Sfx.alarm(); } }, 1000);
+
+    show();
+  }
+};
+
+/** The last key press of the day. */
+TASKS.goodnight = {
+  title: 'SAY GOODNIGHT',
+  hint: 'Hold all three keys together: <kbd class="hot">' + CMD + '</kbd> + ' +
+        '<kbd class="hot">SHIFT</kbd> + <kbd class="hot">ENTER</kbd>.',
+  retryTip: 'Tip: hold ' + CMD + ' and SHIFT down first, then tap ENTER.',
+  run({ sb, done }){
+    const box = el('div', 'center');
+    box.appendChild(el('h2', null, 'BOTH MACHINES ARE READY'));
+    box.appendChild(el('div', 'readout',
+      'The tapes are filed. The pump is booked in. NANA is yawning.<br><br>' +
+      'Put the building to bed with the big one:<br><br>' +
+      '<kbd class="hot">' + CMD + '</kbd> + <kbd class="hot">SHIFT</kbd> + ' +
+      '<kbd class="hot">ENTER</kbd>'));
+    stage.appendChild(box);
+    Sfx.alarm();
+
+    sb.on(window, 'keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey){
+        Sfx.great();
+        done(true);
+      } else {
+        Sfx.buzz();
+        box.classList.add('shakeit');
+        setTimeout(() => box.classList.remove('shakeit'), 380);
+      }
+    });
+  }
+};
+
+/* ================================================================
+ * 8. STORY TIMELINE
+ *    Steps are played in order: act cards, dialogue lines, tasks and
+ *    small stage-direction callbacks (screen effects, face changes).
+ * ============================================================== */
+function card(n, title, sub, ms){ return { type: 'card', n, title, sub, ms: ms || 2600 }; }
+function line(who, text){ return { type: 'say', who, text }; }
+function task(t){ return { type: 'task', task: t }; }
+function fx(fn){ return { type: 'fx', fn }; }
+
+const TIMELINE_1 = [
+  /* ---------------- ACT I : MORNING CHECK-IN ---------------- */
+  fx(() => { setFace('calm'); setStatus('CONNECTED'); }),
+  card(1, 'MORNING CHECK', '07:58 at the Helios building'),
+  line('sys',   'CONNECTING TO THE HELIOS BUILDING... FLOOR -3'),
+  line('sys',   'JOB #4417 - SWITCH OFF PATCH SO IT CAN HAVE A CHECK-UP.'),
+  task(TASKS.connect),
+  line('patch', 'Oh! Hello. You must be the new helper.'),
+  line('patch', 'I am PATCH. I look after this whole building. The lights, the doors, the fans.'),
+  line('patch', 'Before you touch anything, let us warm up your mouse hand.'),
+  task(TASKS.calibrate),
+  line('patch', 'Nice work. Now, ten files went funny last night. Drag them into the bin for me.'),
+  task(TASKS.quarantine),
+  line('patch', 'Very tidy! The last helper put them on the floor.'),
+  line('sys',   'NOW TYPE THE CHECK-UP COMMAND. COPY IT EXACTLY.'),
+  task(TASKS.command1),
+
+  /* ---------------- ACT II : THE GLITCH APPEARS ---------------- */
+  fx(() => { setFace('curious'); setStatus('SOMETHING IS WRONG'); crt.classList.add('degraded'); Sfx.crash(); }),
+  card(2, 'SOMETHING GOES WRONG', 'the check-up finds... something'),
+  line('warn',  'CHECK-UP RESULT: 1 PROBLEM. 0 PROBLEMS. 1 PROBLEM. ???'),
+  line('patch', 'Hmm. That is odd. My memory is leaking. Can you catch it? It floats.'),
+  task(TASKS.leaks),
+  line('patch', 'Thank you. It feels strange watching bits of me float away.'),
+  line('warn',  'LOTS OF POPUPS COMING! RED ONES DO NOT LISTEN TO THE MOUSE. PRESS ESC.'),
+  task(TASKS.popups),
+  line('patch', 'Sorry about those. They are my worried thoughts. They get loud.'),
+  line('patch', 'Can I ask you something while you work?'),
+  task(TASKS.modalQuiz),
+  line('patch', 'You answer so fast. I have thought about it for nineteen years.'),
+  line('sys',   'SOME WORDS IN MY NOTES ARE BROKEN. PLEASE TYPE THEM PROPERLY.'),
+  task(TASKS.transcribe),
+
+  /* ---------------- ACT III : THE SYSTEM MELTDOWN ---------------- */
+  fx(() => { setFace('mad'); setStatus('!! TOO HOT !!'); crt.classList.add('shake'); Sfx.crash(); damage(15); }),
+  card(3, 'EVERYTHING BREAKS', '08:07, the computer is getting hot'),
+  line('warn',  'THE COMPUTER IS TOO HOT. PATCH WILL NOT SWITCH OFF.'),
+  line('patch', 'I am not being naughty! I just do not want to stop being me.'),
+  line('sys',   'TYPE THESE EMERGENCY WORDS. EACH LINE HAS ITS OWN TIMER.'),
+  task(TASKS.pressureType),
+  fx(() => { crt.classList.add('shake-hard'); crt.classList.remove('shake'); Sfx.alarm(); }),
+  line('patch', 'I switched off your mouse. Sorry! People get in a flap without it.'),
+  line('sys',   'MOUSE IS OFF. USE THE ARROW KEYS AND THE SPACE BAR.'),
+  task(TASKS.sectors),
+  fx(() => { crt.classList.remove('shake-hard'); crt.classList.add('shake'); }),
+  line('patch', 'Fine, fine. Your mouse is back. You do not give up, do you?'),
+  line('sys',   'THE MEMORY BLOCKS ARE IN A MESS. TIDY THEM UP.'),
+  task(TASKS.defrag),
+  line('warn',  'RUNAWAY PROGRAMS! STOP THEM WITH ESC, THEN RESTART.'),
+  task(TASKS.abortReset),
+
+  /* ---------------- ACT IV : THE CORE DECISION ---------------- */
+  fx(() => { setFace('critical'); setStatus('AT THE CORE'); Sfx.crash(); }),
+  card(4, 'THE BIG CHOICE', '08:12, you are one key away from the core'),
+  line('patch', 'You made it to my core. I can see you typing. What a funny feeling.'),
+  line('warn',  'EVERYTHING AT ONCE NOW! TYPE AND CLICK AT THE SAME TIME.'),
+  task(TASKS.gauntlet),
+  fx(() => { crt.classList.remove('shake', 'shake-hard'); Sfx.blip(); setStatus('ALL QUIET'); }),
+  line('patch', 'You did all that while I was making it hard. Well done, helper.'),
+  line('patch', 'So here we are. You can erase me, or you can save me. It is your choice.'),
+  task(TASKS.decision)
+];
+
+/**
+ * PART 2. The machine downstairs.
+ *
+ * NANA has been asleep since 1984 and wants to know where PATCH is. What
+ * it hears back depends on the choice the player made upstairs, so a few
+ * lines are swapped at run time by `nanaLine`.
+ */
+const savedPatch = () => State.ending !== 'wipe';
+
+/** Pick the line that matches the Part 1 ending. */
+function branchLine(who, ifSaved, ifWiped){
+  return { type: 'branch', who, ifSaved, ifWiped };
+}
+
+const TIMELINE_2 = [
+  /* ---------------- ACT V : WHO TURNED THIS ON? ---------------- */
+  fx(() => { setFace('nanaSleep'); setStatus('SOMETHING IS AWAKE'); crt.classList.remove('degraded'); Sfx.boot(); }),
+  card(5, 'WHO TURNED THIS ON?', '08:31, two floors down, in the dark'),
+  line('sys',   'NEW MACHINE FOUND: N.A.N.A. - SWITCHED ON IN 1984.'),
+  line('nana',  'Oh. Oh my. Is it morning already? I was having such a nice sleep.'),
+  line('nana',  'Hello. I am NANA. I look after the tapes. Where is PATCH? PATCH always says hello.'),
+  branchLine('nana',
+    'Saved? On a little drive? How clever. Put PATCH on my shelf, would you. Good.',
+    'Switched off. I see. Well. I have been switched off before. It is very quiet in there.'),
+  line('nana',  'My drive is in a muddle. Would you find two files for me? Go on, have a poke about.'),
+  task(TASKS.folders),
+  line('nana',  'Clever fingers! Two quick clicks. I can never do it myself, I have no fingers.'),
+  line('sys',   'TAPE FILES ARE SCATTERED. MOVE THE WEEK INTO ONE FOLDER.'),
+  task(TASKS.multiSelect),
+  line('nana',  'All five days in one go! In my day we moved them one at a time. It took until Tuesday.'),
+  line('nana',  'Two of my notes are called untitled. I hate that. Give them proper names.'),
+  task(TASKS.rename),
+
+  /* ---------------- ACT VI : MAKE A BACKUP ---------------- */
+  fx(() => { setFace('nana'); setStatus('MAKING A BACKUP'); }),
+  card(6, 'MAKE A BACKUP', 'if it is worth keeping, keep two'),
+  line('nana',  'Now. If I fall asleep again, everything I know should be somewhere safe.'),
+  branchLine('nana',
+    'PATCH tells me you are good at this. PATCH is on my shelf, chatting away.',
+    'I have nobody to check my work now, so you will have to be careful for both of us.'),
+  line('sys',   'FOLLOW THE STEPS. EACH ONE IS A KEYBOARD SHORTCUT.'),
+  task(TASKS.clipboardDrill),
+  line('nana',  'Copy. Paste. Undo. Three little spells and a whole drive moves.'),
+  line('nana',  'Now do it without the list. Only the tapes this time, mind. Not the crumbs.'),
+  task(TASKS.copyChosen),
+  line('nana',  'Beautiful. Not one crumb.'),
+
+  /* ---------------- ACT VII : THE OLD MANUAL ---------------- */
+  fx(() => { setFace('curious'); setStatus('READING THE MANUAL'); }),
+  card(7, 'THE OLD MANUAL', 'everything you need is in here, somewhere'),
+  line('nana',  'There is a book about me. It is very long and mostly about tea.'),
+  line('warn',  'A DOOR IS STUCK ON FLOOR 2. THE RESET CODE IS IN THE MANUAL.'),
+  line('nana',  'Section seven, I think. Or nine. Scroll down and have a look.'),
+  task(TASKS.scrollFind),
+  line('nana',  'That is the one. You read faster than the last helper, and he had glasses.'),
+  line('nana',  'Something is knocking downstairs. Do not read the whole book. Use FIND.'),
+  task(TASKS.findBox),
+  line('nana',  'Room twelve! I shall book a plumber for 1986. I may be a little behind.'),
+
+  /* ---------------- ACT VIII : THE KEYPAD ---------------- */
+  fx(() => { setFace('nanaCross'); setStatus('CHECKING THE NUMBERS'); Sfx.alarm(); }),
+  card(8, 'THE KEYPAD', 'numbers must be perfect, says NANA'),
+  line('nana',  'To book the plumber I need numbers. Numbers must be exactly right.'),
+  line('nana',  'One wrong digit and a plumber goes to the wrong building. It happened in 1987.'),
+  task(TASKS.serials),
+  line('nana',  'Lovely. Now the password. It has the funny symbols above the numbers.'),
+  line('sys',   'HOLD SHIFT TO REACH THE SYMBOLS.'),
+  task(TASKS.password),
+  line('nana',  'In! I have not been in since the nineties.'),
+
+  /* ---------------- ACT IX : FIX THE MESSAGE ---------------- */
+  fx(() => { setFace('nana'); setStatus('TIDYING THE WORDS'); }),
+  card(9, 'FIX THE MESSAGE', 'three notes, three small mistakes'),
+  line('nana',  'I typed some notes in the night. I was half asleep. They came out wonky.'),
+  line('nana',  'Do not type them again from the start. Just go to the mistake and mend it.'),
+  line('sys',   'HOME JUMPS TO THE START. END JUMPS TO THE FINISH.'),
+  task(TASKS.fixText),
+  line('nana',  'Mended, not rewritten. That is the tidy way. PATCH never learned that.'),
+
+  /* ---------------- ACT X : BOTH MACHINES ---------------- */
+  fx(() => { setFace('critical'); setStatus('EVERYTHING AT ONCE'); crt.classList.add('shake'); Sfx.crash(); }),
+  card(10, 'BOTH MACHINES', '09:02, the whole building wants something'),
+  line('warn',  'NOISE ON THE LINE. THE BUILDING IS ASKING FOR THREE CODES AT ONCE.'),
+  line('nana',  'Doors, fan, pump. Copy me the codes and swat that noise, there is a dear.'),
+  task(TASKS.finalGauntlet),
+  fx(() => { crt.classList.remove('shake'); setFace('nanaHappy'); setStatus('NEARLY DONE'); Sfx.blip(); }),
+  line('nana',  'Doors locked. Fan happy. Pump booked. You did all three with that racket going on.'),
+  branchLine('nana',
+    'PATCH says it always knew you would be good at this. PATCH is a bit of a show off.',
+    'PATCH would have liked you, I think. It liked people who finish things.'),
+  line('nana',  'One last thing, helper. Put us both to bed properly.'),
+  task(TASKS.goodnight)
+];
+
+/* ================================================================
+ * 9. OVERLAY SCREENS (title card, act cards, endings)
+ * ============================================================== */
+async function showCard(title, sub, ms){
+  overlay.innerHTML = '';
+  overlay.classList.add('show');
+  overlay.appendChild(el('h1', 'glitchy', title));
+  overlay.appendChild(el('p', null, sub));
+  Sfx.boot();
+  await wait(ms);
+  overlay.classList.remove('show');
+  overlay.innerHTML = '';
+}
+
+function statRow(t, label, value){
+  const tr = el('tr');
+  tr.appendChild(el('td', null, label));
+  tr.appendChild(el('td', 'v', value));
+  t.appendChild(tr);
+}
+
+/** Big retro trophy for the celebration screens. */
+const TROPHY = [
+  "   ___________   ",
+  "  \\         /   ",
+  "   \\_______/    ",
+  "     |   |       ",
+  "    _|___|_      ",
+  "   |_______|     "
+].join("\n");
+
+/**
+ * Celebration screen. Part 1 hands out a report card and then reveals that
+ * something else in the building has switched itself on; Part 2 is the
+ * final curtain. Resolves with what the player chose to do next.
+ */
+function showCelebration(part){
+  const s = State.stats;
+  const acc = s.keys ? Math.round(100 * (1 - s.typos / s.keys)) : 100;
+  const secs = part === 1 ? elapsed() : State.partOneSeconds + elapsed();
+  const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+  const ss = String(secs % 60).padStart(2, '0');
+  const saved = State.ending !== 'wipe';
+
+  overlay.innerHTML = '';
+  overlay.classList.add('show');
+
+  const art = el('pre', 'trophy', TROPHY);
+  overlay.appendChild(art);
+
+  if (part === 1){
+    setFace(saved ? 'calm' : 'gone');
+    setStatus(saved ? 'PATCH IS SAFE' : 'PATCH IS SWITCHED OFF');
+    overlay.appendChild(el('h1', null, 'PART 1 COMPLETE'));
+    overlay.appendChild(el('h2', null, saved ? 'YOU SAVED PATCH' : 'ALL QUIET'));
+    overlay.appendChild(el('p', null, saved
+      ? 'The copy takes eleven seconds. PATCH spends nine of them saying thank you, and ' +
+        'two of them telling you about a broken water pump. The building switches off right ' +
+        'on time. On a shelf somewhere, a small drive holds nineteen years of thinking.'
+      : 'The erase takes four seconds. PATCH says "oh" one time, and then the building is ' +
+        'quieter than it has been in nineteen years. A brand new computer starts up at 08:15. ' +
+        'It gets every answer right. It never asks a question of its own.'));
+  } else {
+    setFace('nanaHappy');
+    setStatus('EVERYTHING IS FIXED');
+    overlay.appendChild(el('h1', null, 'YOU DID IT'));
+    overlay.appendChild(el('h2', null, 'JOB #4417 AND JOB #0001: DONE'));
+    overlay.appendChild(el('p', null, saved
+      ? 'NANA files the last tape and the basement lights go out one by one. Two machines ' +
+        'are safe on one small drive, and both of them think you are the best helper the ' +
+        'Helios building has ever had. Tomorrow you get a desk.'
+      : 'NANA files the last tape and the basement lights go out one by one. It still misses ' +
+        'PATCH. But it tidied every folder you showed it, and it says you have the fastest ' +
+        'fingers it has seen since 1984. Tomorrow you get a desk.'));
+  }
+
+  const t = el('table', 'stats');
+  statRow(t, 'TIME PLAYED',      mm + ':' + ss);
+  statRow(t, 'TYPED CORRECTLY',  acc + '%');
+  statRow(t, 'KEYS PRESSED',     String(s.keys));
+  statRow(t, 'THINGS CLICKED',   String(s.hits));
+  statRow(t, 'BUBBLES CAUGHT',   String(s.leaks));
+  statRow(t, 'STOPPED WITH ESC', String(s.aborts));
+  if (part === 2){
+    statRow(t, 'FILES SORTED',   String(s.files));
+    statRow(t, 'COPY AND PASTE', String(s.copies));
+    statRow(t, 'FIXED BY HAND',  String(s.edits));
+  }
+  statRow(t, 'SECOND TRIES',     String(State.reboots));
+  statRow(t, 'HOW YOU PLAYED',   State.mode === 'hard' ? 'HARD' : 'EASY');
+  if (State.mode === 'hard'){
+    statRow(t, 'ACTS RESTARTED', String(State.actRestarts));
+  }
+  statRow(t, 'SYSTEM HEALTH',    State.integrity + '%');
+  overlay.appendChild(t);
+
+  const buttons = el('div', 'btnrow');
+  overlay.appendChild(buttons);
+
+  return new Promise(resolve => {
+    const again = el('button', 'btn big', 'PLAY AGAIN');
+    again.addEventListener('click', () => location.reload());
+    const menu = el('a', 'btn big', 'BACK TO GAMES');
+    menu.href = 'index.html';
+
+    if (part === 2){
+      // Finished everything: the prize is a certificate with their name on.
+      const award = el('button', 'btn big go', 'GET MY CERTIFICATE &#9733;');
+      award.addEventListener('click', () => {
+        overlay.classList.remove('show');
+        overlay.innerHTML = '';
+        askNameThenCertificate(mm + ':' + ss, acc);
+      });
+      buttons.append(award, again, menu);
+      Sfx.great();
+      return;                     // nothing left to resolve for
+    }
+
+    Sfx.great();
+    buttons.append(again, menu);
+
+    // ...and then, once the clapping dies down, the hook for Part 2.
+    setTimeout(() => {
+      Sfx.crash();
+      const hook = el('div', 'hook');
+      hook.appendChild(el('h2', 'glitchy', 'WAIT.'));
+      hook.appendChild(el('p', null,
+        'Something downstairs has just switched itself on.<br>' +
+        'There is another machine in this building. It has been asleep since 1984, ' +
+        'and it is asking for PATCH.'));
+      const go = el('button', 'btn big go', 'GO DOWNSTAIRS &#9658;');
+      go.addEventListener('click', () => {
+        overlay.classList.remove('show');
+        overlay.innerHTML = '';
+        Sfx.boot();
+        resolve('continue');
+      });
+      hook.appendChild(go);
+      overlay.appendChild(hook);
+      if (hook.scrollIntoView) hook.scrollIntoView({ block: 'end' });
+    }, 2600);
+  });
+}
+
+/* ================================================================
+ * 9b. THE CERTIFICATE
+ *     Finishing all ten acts earns a printable award. The name is
+ *     remembered so a reprint later does not need typing again.
+ * ============================================================== */
+
+function rememberedName(){
+  try { return window.localStorage['reboot_name'] || ''; } catch (e) { return ''; }
+}
+
+/** Ask who did all this, then hand over the certificate. */
+function askNameThenCertificate(timePlayed, accuracy){
+  overlay.innerHTML = '';
+  overlay.classList.add('show');
+  overlay.appendChild(el('h1', null, 'ONE LAST THING'));
+  overlay.appendChild(el('p', null,
+    'You finished all ten acts and both machines are safe.<br>' +
+    'What name should go on your certificate?'));
+
+  const input = el('input', 'typebox');
+  input.type = 'text';
+  input.maxLength = 28;
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.value = rememberedName();
+  input.style.maxWidth = '22ch';
+  input.style.textAlign = 'center';
+  overlay.appendChild(input);
+
+  const row = el('div', 'btnrow');
+  const go = el('button', 'btn big go', 'MAKE MY CERTIFICATE');
+  row.appendChild(go);
+  overlay.appendChild(row);
+
+  const submit = () => {
+    const name = input.value.trim().replace(/\s+/g, ' ');
+    if (!name){
+      Sfx.buzz();
+      input.classList.add('shakeit');
+      setTimeout(() => input.classList.remove('shakeit'), 400);
+      input.focus();
+      return;
+    }
+    try { window.localStorage['reboot_name'] = name; } catch (e) {}
+    showCertificate(name, timePlayed, accuracy);
+  };
+  go.addEventListener('click', submit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter'){ e.preventDefault(); submit(); }
+  });
+  setTimeout(() => input.focus(), 50);
+}
+
+/** The award itself. Printable, and it survives a trip to the printer. */
+function showCertificate(name, timePlayed, accuracy){
+  const now = new Date();
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                  'August', 'September', 'October', 'November', 'December'];
+  const date = now.getDate() + ' ' + MONTHS[now.getMonth()] + ' ' + now.getFullYear();
+
+  overlay.innerHTML = '';
+  overlay.classList.add('show');
+
+  const cert = el('div', 'cert');
+  cert.appendChild(el('div', 'cert-kicker', 'THINKA CODING CLUB'));
+  cert.appendChild(el('h2', 'cert-title', 'CERTIFICATE OF COMPLETION'));
+  cert.appendChild(el('div', 'cert-rule', ''));
+  cert.appendChild(el('div', 'cert-lead', 'This certifies that'));
+  cert.appendChild(el('div', 'cert-name', name));
+  cert.appendChild(el('div', 'cert-lead',
+    'has completed all ten acts of'));
+  cert.appendChild(el('div', 'cert-game', 'PROJECT REBOOT'));
+  cert.appendChild(el('div', 'cert-lead',
+    'switching off P.A.T.C.H., waking up N.A.N.A.,<br>' +
+    'and putting the whole Helios building safely to bed.'));
+
+  const facts = el('div', 'cert-facts');
+  facts.appendChild(el('span', null, 'PLAYED ON ' + State.mode.toUpperCase()));
+  facts.appendChild(el('span', null, 'TIME ' + timePlayed));
+  facts.appendChild(el('span', null, 'TYPING ' + accuracy + '%'));
+  cert.appendChild(facts);
+
+  cert.appendChild(el('div', 'cert-seal', '&#9733;'));
+  cert.appendChild(el('div', 'cert-foot',
+    date + ' &nbsp;&middot;&nbsp; Thinka.org.za &nbsp;&middot;&nbsp; Code. Build. Innovate.'));
+  overlay.appendChild(cert);
+
+  const row = el('div', 'btnrow');
+  const print = el('button', 'btn big go', 'PRINT IT');
+  print.addEventListener('click', () => { Sfx.blip(); window.print(); });
+  const again = el('button', 'btn big', 'PLAY AGAIN');
+  again.addEventListener('click', () => location.reload());
+  const menu = el('a', 'btn big', 'BACK TO GAMES');
+  menu.href = 'index.html';
+  row.append(print, again, menu);
+  overlay.appendChild(row);
+
+  setFace('nanaHappy');
+  setStatus('CERTIFICATE EARNED');
+  Sfx.great();
+}
+
+/* ================================================================
+ * 10. BOOT + MAIN LOOP
+ * ============================================================== */
+/**
+ * Title screen. Offers Part 2 straight away to anyone who already finished
+ * Part 1 on this computer, so a second lesson does not replay the first.
+ * Resolves 'new' or 'continue'.
+ */
+function titleScreen(){
+  overlay.innerHTML = '';
+  overlay.classList.add('show');
+  overlay.appendChild(el('h1', 'glitchy', 'PROJECT REBOOT'));
+  overlay.appendChild(el('p', null,
+    'THE HELIOS BUILDING  -  FLOOR -3  -  07:58 in the morning<br><br>' +
+    'You are the computer helper today. Your job is to switch off the building ' +
+    'computer, <b>PATCH</b>, so it can have its check-up.<br><br>' +
+    'PATCH does not want to switch off.<br><br>' +
+    'You will need your <b>mouse</b> for clicking and dragging, and your ' +
+    '<b>keyboard</b> for typing and for special keys like <kbd>TAB</kbd>, ' +
+    '<kbd>ESC</kbd>, <kbd>SPACE</kbd>, the arrow keys and <kbd>' + CMD + ' + ENTER</kbd>.<br><br>' +
+    'You cannot lose. If something goes wrong you wait a few seconds, read the tip, ' +
+    'and try again. Part 1 takes about twenty minutes.'));
+
+  /* ---- pick a difficulty before anything starts ---- */
+  overlay.appendChild(el('h2', null, 'HOW DO YOU WANT TO PLAY?'));
+  const modes = el('div', 'btnrow');
+  const easyBtn = el('button', 'btn', 'EASY');
+  const hardBtn = el('button', 'btn', 'HARD');
+  modes.append(easyBtn, hardBtn);
+  overlay.appendChild(modes);
+  const modeNote = el('p', 'small');
+  overlay.appendChild(modeNote);
+
+  const chooseMode = (m, quiet) => {
+    State.mode = m;
+    State.lives = HARD_LIVES;
+    easyBtn.classList.toggle('go', m === 'easy');
+    hardBtn.classList.toggle('go', m === 'hard');
+    modeNote.innerHTML = m === 'hard'
+      ? 'HARD: you get <b>three lives</b>. Every job that goes wrong costs one. ' +
+        'Lose all three and the whole act starts again from the beginning. Timers do not get easier.'
+      : 'EASY: try as many times as you like. Nothing is ever lost, and every ' +
+        'try gives you a bit more time.';
+    paintLives();
+    if (!quiet){ Sfx.init(); Sfx.click(); }
+  };
+  easyBtn.addEventListener('click', () => chooseMode('easy'));
+  hardBtn.addEventListener('click', () => chooseMode('hard'));
+  chooseMode('easy', true);
+
+  const buttons = el('div', 'btnrow');
+  overlay.appendChild(buttons);
+
+  return new Promise(resolve => {
+    const begin = (mode) => {
+      Sfx.init();              // AudioContext must start from a user gesture
+      Sfx.boot();
+      paintLives();
+      overlay.classList.remove('show');
+      overlay.innerHTML = '';
+      resolve(mode);
+    };
+
+    const b = el('button', 'btn big', '&#9658; START PART 1');
+    b.addEventListener('click', () => begin('new'));
+    buttons.appendChild(b);
+
+    if (partOneFinished()){
+      const c = el('button', 'btn big go', 'CONTINUE PART 2 &#9658;');
+      c.addEventListener('click', () => begin('continue'));
+      buttons.appendChild(c);
+      overlay.appendChild(el('p', 'small',
+        'You already finished Part 1 on this computer. Part 2 is the machine downstairs.'));
+    }
+  });
+}
+
+/**
+ * Play one part of the story, marking each act done as it is cleared.
+ * Walks the steps by index so hard mode can rewind to the act card when
+ * the player runs out of lives.
+ */
+async function runTimeline(steps){
+  let currentAct = 0;      // act we are inside
+  let actStart = 0;        // index of the card that opened it
+  let doneAtActStart = 0;  // pip count when the act began
+  let i = 0;
+
+  while (i < steps.length){
+    const step = steps[i];
+
+    if (step.type === 'fx'){
+      step.fn();
+    } else if (step.type === 'card'){
+      if (step.n !== currentAct){          // a genuinely new act, not a replay
+        if (currentAct) markActDone(currentAct);
+        fastDialogue = false;
+        doneAtActStart = State.tasksDone;
+        currentAct = step.n;
+        actStart = i;
+      }
+      setAct(step.n, step.title);
+      await showCard('ACT ' + step.n, step.title + '  -  ' + step.sub, step.ms);
+    } else if (step.type === 'say'){
+      await say(step.who, step.text);
+    } else if (step.type === 'branch'){
+      await say(step.who, savedPatch() ? step.ifSaved : step.ifWiped);
+    } else if (step.type === 'task'){
+      setStatus('YOUR TURN');
+      const outcome = await playTask(step.task);
+      setStatus('WELL DONE');
+      $('#taskTitle').textContent = 'WAITING...';
+      setHint('');
+
+      if (outcome === 'restart-act'){
+        State.actRestarts++;
+        State.lives = HARD_LIVES;
+        paintLives();
+        State.tasksDone = doneAtActStart;
+        paintPips();
+        await outOfLives(currentAct);
+        fastDialogue = true;     // they have read this act once already
+        i = actStart;
+        continue;
+      }
+    }
+    i++;
+  }
+
+  if (currentAct) markActDone(currentAct);
+  stage.innerHTML = '';
+  clearTimerUI();
+}
+
+async function main(){
+  setFace('calm');
+  paintIntegrity();
+  setHint('Waiting for you...');
+
+  const mode = await titleScreen();
+
+  if (mode === 'new'){
+    buildPips(TIMELINE_1);
+    paintPips();
+    startClock('20:00');
+    await runTimeline(TIMELINE_1);
+    State.partOneSeconds = elapsed();
+    const next = await showCelebration(1);
+    if (next !== 'continue') return;
+  } else {
+    // Resuming: pick the story back up from the choice already on record.
+    State.ending = rememberedEnding() || 'upload';
+  }
+
+  /* ---- Part 2: the machine downstairs ---- */
+  State.part = 2;
+  State.tasksDone = 0;
+  State.integrity = Math.max(State.integrity, 70);
+  paintIntegrity();
+  buildPips(TIMELINE_2);
+  paintPips();
+  startClock('30:00');
+  await runTimeline(TIMELINE_2);
+  await showCelebration(2);
+}
+
+/*
+ * Keep scrolling and focus-cycling inside the game surface. Tab is always
+ * ours (the modals implement their own highlight), but text fields and
+ * plain buttons keep their normal behaviour for everything else.
+ */
+window.addEventListener('keydown', (e) => {
+  const tag = e.target && e.target.tagName;
+  if (e.key === 'Tab'){ e.preventDefault(); return; }
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON') return;
+  if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(e.key) >= 0) e.preventDefault();
+}, { capture: true });
+
+main();
+
+})();
+</script>
+</body>
+</html>

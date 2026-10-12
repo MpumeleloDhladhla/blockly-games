@@ -14,7 +14,7 @@ body {
 }
 .thinka-about-hero {
   background:
-    radial-gradient(circle at 90% 0%, rgba(255, 69, 0, 0.18), transparent 40%),
+    radial-gradient(circle at 90% 0%, rgba(255, 69, 0, 0.06), transparent 40%),
     var(--thinka-page);
   color: var(--thinka-text);
   padding: 2.2em 10% 2em;
@@ -86,6 +86,40 @@ footer a {
 footer a:hover {
   color: var(--thinka-text-strong);
 }
+
+@media (max-height: 800px) {
+  .thinka-about-hero {
+    padding: 1.1em 6% 1em;
+  }
+  .thinka-about-hero h1 {
+    font-size: clamp(1.45rem, 3.2vw, 2rem);
+    margin-bottom: 0.2em;
+  }
+  .thinka-about-hero p {
+    font-size: 0.98rem;
+  }
+  section {
+    padding: 0.9em 5% 1.2em;
+  }
+  .thinka-about-list {
+    gap: 0.65em;
+    margin: 0.7em 0;
+  }
+  .thinka-about-item {
+    padding: 0.55em 0.85em;
+    border-radius: 16px;
+    gap: 0.75em;
+  }
+  .thinka-about-item img {
+    flex-basis: 56px;
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+  }
+  footer {
+    padding: 16px 6% 14px;
+  }
+}
   </style>
 </head>
 <body>
@@ -98,6 +132,10 @@ footer a:hover {
 <p>Thinka Games is Thinka’s classroom fork of Blockly Games. It teaches programming with colourful blocks, then steps toward real JavaScript. The pack is <strong>offline-first</strong>: after a build it runs from a folder or ZIP, with no gallery, analytics, or cloud save.</p>
 
 <div class="thinka-about-list">
+  <article class="thinka-about-item">
+    <img src="index/art/race.svg" height=88 width=88 alt="">
+    <p>Race is a 30 second typing race on the classroom WiFi. The teacher hosts it from this laptop. Students join with a name. No internet.</p>
+  </article>
   <article class="thinka-about-item">
     <img src="index/art/keys.svg" height=88 width=88 alt="">
     <p>Keys is a typing game: home-row lessons, a race, and coding words (if, else, while) that lead into Maze.</p>

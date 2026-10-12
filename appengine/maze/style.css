@@ -272,7 +272,7 @@ html[dir="RTL"] #pegmanButton>span {
   background: none;
   border: none;
   box-shadow: none;
-  color: #888;
+  color: var(--thinka-muted);
   float: right;
   font-size: 90%;
   min-width: 0;
@@ -281,11 +281,12 @@ html[dir="RTL"] #pegmanButton>span {
 .mazeExplainSkip:hover {
   background: none;
   box-shadow: none;
-  color: #444;
+  color: var(--thinka-text-strong);
 }
 .mazeExplainTitle {
   font-size: 120%;
   padding: 0 0.2em 0.4em;
+  color: var(--thinka-text-strong);
 }
 .mazeExplainBody {
   align-items: center;
@@ -310,6 +311,7 @@ html[dir="RTL"] #pegmanButton>span {
   background: #fff8e1;
   border: 1px solid #f0d78c;
   border-radius: 12px;
+  color: #1a1a1a;
   flex: 1;
   font-size: 110%;
   line-height: 1.35;

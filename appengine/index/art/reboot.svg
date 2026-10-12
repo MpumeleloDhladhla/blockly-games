@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" fill="none" aria-hidden="true">
+  <defs>
+    <radialGradient id="rebootGlow" cx="50%" cy="38%" r="62%">
+      <stop offset="0%" stop-color="#22C55E" stop-opacity=".07"/>
+      <stop offset="100%" stop-color="#22C55E" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="rebootScreen">
+      <rect x="48" y="52" width="144" height="98" rx="12"/>
+    </clipPath>
+  </defs>
+  <rect width="240" height="240" rx="52" fill="#08140A"/>
+  <rect width="240" height="240" rx="52" fill="url(#rebootGlow)"/>
+
+  <!-- CRT monitor -->
+  <rect x="36" y="40" width="168" height="122" rx="22" fill="#0A140A" stroke="#22C55E" stroke-width="4"/>
+  <rect x="48" y="52" width="144" height="98" rx="12" fill="#030A03"/>
+
+  <g clip-path="url(#rebootScreen)">
+    <!-- Terminal prompt line -->
+    <path d="M66 76 l10 8 -10 8" stroke="#22C55E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <rect x="86" y="76" width="52" height="8" rx="4" fill="#22C55E"/>
+    <rect x="86" y="94" width="34" height="8" rx="4" fill="#FACC15"/>
+    <rect x="128" y="94" width="10" height="8" rx="3" fill="#FF4500"/>
+    <rect x="66" y="112" width="74" height="8" rx="4" fill="#121F12"/>
+    <rect x="148" y="112" width="8" height="12" rx="2" fill="#FACC15"/>
+    <!-- Scanlines -->
+    <g fill="#22C55E" opacity=".18">
+      <rect x="48" y="58" width="144" height="2"/>
+      <rect x="48" y="70" width="144" height="2"/>
+      <rect x="48" y="82" width="144" height="2"/>
+      <rect x="48" y="94" width="144" height="2"/>
+      <rect x="48" y="106" width="144" height="2"/>
+      <rect x="48" y="118" width="144" height="2"/>
+      <rect x="48" y="130" width="144" height="2"/>
+      <rect x="48" y="142" width="144" height="2"/>
+    </g>
+  </g>
+
+  <!-- Stand -->
+  <path d="M104 162 h32 l6 20 h-44 z" fill="#121F12"/>
+  <rect x="78" y="182" width="84" height="12" rx="6" fill="#22C55E"/>
+
+  <!-- Power / reboot ring, bottom left -->
+  <circle cx="46" cy="186" r="24" fill="#0A140A" stroke="#FF4500" stroke-width="4"/>
+  <path d="M46 174 v12" stroke="#FF4500" stroke-width="5" stroke-linecap="round"/>
+  <path d="M35 186 a11 11 0 1 0 22 0" stroke="#FF4500" stroke-width="5" stroke-linecap="round" fill="none"/>
+
+  <!-- ESC keycap, bottom right -->
+  <rect x="172" y="168" width="42" height="38" rx="10" fill="#0A140A" stroke="#60A5FA" stroke-width="4"/>
+  <path d="M182 181 h10 m-10 6 h7 m-7 6 h10" stroke="#60A5FA" stroke-width="4" stroke-linecap="round"/>
+</svg>

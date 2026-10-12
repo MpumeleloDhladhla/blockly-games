@@ -1,0 +1,294 @@
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--thinka-page);
+  color: var(--thinka-text);
+  font-family: "Thinka Nunito", sans-serif;
+}
+
+.race-app {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 28px 6vw 40px;
+}
+
+.race-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.race-logo {
+  font-family: "Thinka Fredoka", sans-serif;
+  color: var(--thinka-text-strong);
+  font-size: 1.4rem;
+  text-decoration: none;
+}
+
+.race-logo span { color: var(--thinka-orange); }
+
+h1, h2 {
+  font-family: "Thinka Fredoka", sans-serif;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.race-lead {
+  color: var(--thinka-muted);
+  font-size: 1.15rem;
+  max-width: 38rem;
+}
+
+.race-gate, .race-lobby, .race-board {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.race-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+button, .race-btn {
+  font-family: "Thinka Fredoka", sans-serif;
+  font-size: 1.15rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 22px;
+  cursor: pointer;
+  background: var(--thinka-orange);
+  color: white;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.race-secondary {
+  background: var(--thinka-panel);
+  color: var(--thinka-text);
+}
+
+label {
+  display: block;
+  margin-top: 18px;
+  color: var(--thinka-muted);
+}
+
+input[type="text"] {
+  display: block;
+  margin-top: 8px;
+  width: min(100%, 320px);
+  box-sizing: border-box;
+  font: 1.2rem "Thinka Nunito", sans-serif;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 2px solid var(--thinka-panel);
+  background: var(--thinka-surface);
+  color: var(--thinka-text-strong);
+}
+
+.race-error {
+  color: var(--thinka-error);
+  min-height: 1.4em;
+  margin-top: 12px;
+}
+
+.race-url {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: var(--thinka-surface);
+  font-family: "Thinka Fredoka", sans-serif;
+  font-size: 1.5rem;
+  word-break: break-all;
+}
+
+.race-lines, .race-roster {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.race-line {
+  text-align: left;
+  border-radius: 16px;
+  background: var(--thinka-surface);
+  color: var(--thinka-text);
+}
+
+.race-line.is-on {
+  outline: 3px solid var(--thinka-orange);
+}
+
+.race-roster div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.race-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.race-clock {
+  font-family: "Thinka Fredoka", sans-serif;
+  font-size: 3rem;
+  color: var(--thinka-yellow);
+}
+
+.race-count {
+  font-family: "Thinka Fredoka", sans-serif;
+  font-size: 8rem;
+  text-align: center;
+  margin: 24px 0;
+  color: var(--thinka-orange);
+}
+
+.race-board {
+  min-height: calc(100vh - 56px);
+  display: flex;
+  flex-direction: column;
+}
+
+.race-lanes {
+  margin: 8px 0 12px;
+}
+
+.race-lane {
+  display: grid;
+  grid-template-columns: 150px 1fr 96px;
+  gap: 12px;
+  align-items: center;
+  margin: 12px 0;
+}
+
+.race-lane--me .race-track {
+  box-shadow: inset 0 0 0 3px var(--thinka-orange);
+}
+
+.race-who {
+  font-family: "Thinka Fredoka", sans-serif;
+  font-size: 1.15rem;
+}
+
+.race-track {
+  position: relative;
+  height: 64px;
+  background:
+    linear-gradient(#121F12, #121F12) center 46px / 100% 4px no-repeat,
+    var(--thinka-surface);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.race-car {
+  position: absolute;
+  top: 8px;
+  width: 72px;
+  height: 40px;
+  transform: translateX(-50%);
+}
+
+.race-meta {
+  text-align: right;
+  color: var(--thinka-text-strong);
+  font-family: "Thinka Fredoka", sans-serif;
+}
+
+.race-meta span {
+  display: block;
+  color: var(--thinka-muted);
+  font-family: "Thinka Nunito", sans-serif;
+  font-size: 0.85rem;
+}
+
+.race-diffs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.race-now {
+  margin: 0 0 8px;
+  font-family: "Thinka Fredoka", sans-serif;
+  font-size: 1.35rem;
+  color: var(--thinka-yellow);
+}
+
+.race-now--flash {
+  color: var(--thinka-text-strong);
+}
+
+.race-prompt {
+  margin-top: 28px;
+  font-family: "Thinka Fredoka", sans-serif;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  letter-spacing: 0.04em;
+  background: var(--thinka-surface);
+  border-radius: 20px;
+  padding: 18px 20px;
+  overflow: hidden;
+  white-space: pre;
+}
+
+.race-prompt b {
+  color: var(--thinka-page);
+  background: var(--thinka-orange);
+  border-radius: 8px;
+  padding: 0 4px;
+}
+
+.race-rules {
+  color: var(--thinka-muted);
+  margin-top: 14px;
+}
+
+.race-podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 16px;
+  min-height: 280px;
+  margin: 20px 0 28px;
+}
+
+.race-place {
+  width: 160px;
+  border-radius: 18px 18px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 16px 10px;
+  color: var(--thinka-page);
+  font-family: "Thinka Fredoka", sans-serif;
+  text-align: center;
+}
+
+.race-place strong {
+  font-size: 1.3rem;
+}
+
+.race-place--1 { height: 240px; background: var(--thinka-yellow); }
+.race-place--2 { height: 180px; background: var(--thinka-sky); }
+.race-place--3 { height: 140px; background: var(--thinka-pink); }
+
+.race-rest {
+  list-style: none;
+  padding: 0;
+}
+
+.race-rest li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--thinka-panel);
+}
+
+.race-gone { opacity: 0.45; }
