@@ -187,7 +187,46 @@ body.arcade-app {
 /* ------------------------------------------------------------------ Play */
 
 .arcade-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1em;
   margin: 0.3em 0 0.6em;
+}
+
+.arcade-meta-copy {
+  min-width: 0;
+}
+
+.arcade-how {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  margin: 0.15em 0 0;
+  padding: 0.28em 0.85em 0.28em 0.28em;
+  border: 2px solid rgba(248, 250, 252, 0.16);
+  border-radius: var(--thinka-radius-pill);
+  background: var(--thinka-panel);
+  color: var(--thinka-text-strong);
+  font-size: 0.95rem;
+}
+
+.arcade-how-mark {
+  display: grid;
+  place-items: center;
+  width: 1.7em;
+  height: 1.7em;
+  border-radius: 50%;
+  background: var(--thinka-orange);
+  color: var(--thinka-text-strong);
+  font-family: var(--thinka-display);
+  font-weight: 700;
+}
+
+.arcade-how:hover,
+.arcade-how:focus-visible {
+  border-color: var(--thinka-orange);
 }
 
 .arcade-kicker {
@@ -602,6 +641,144 @@ body.arcade-app {
   white-space: nowrap;
 }
 
+/* ------------------------------------------------------------- How to play */
+
+.arcade-explain {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1em;
+  background: rgba(3, 10, 3, 0.82);
+}
+
+.arcade-explain[hidden] {
+  display: none;
+}
+
+.arcade-explain-card {
+  width: min(36em, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 1.4em 1.5em 1.2em;
+  border-radius: var(--thinka-radius);
+  background: var(--thinka-surface);
+  border: 2px solid rgba(248, 250, 252, 0.16);
+  box-shadow: var(--thinka-shadow);
+  text-align: center;
+}
+
+.arcade-explain-kicker {
+  margin: 0;
+  font-family: var(--thinka-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--thinka-orange);
+}
+
+.arcade-explain-title {
+  margin: 0.15em 0 0.35em;
+  font-family: var(--thinka-display);
+  font-size: 2.1rem;
+  color: var(--thinka-text-strong);
+}
+
+.arcade-explain-goal {
+  margin: 0 0 0.9em;
+  padding: 0.55em 0.8em;
+  border-radius: var(--thinka-radius-sm);
+  background: var(--thinka-panel);
+  color: var(--thinka-text-strong);
+  font-size: 1.15rem;
+  line-height: 1.4;
+}
+
+.arcade-explain-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+  margin-bottom: 1em;
+  text-align: start;
+}
+
+.arcade-explain-step {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  padding: 0.7em 0.85em;
+  border-radius: var(--thinka-radius-sm);
+  background: var(--thinka-page);
+  border: 2px solid rgba(248, 250, 252, 0.1);
+}
+
+.arcade-explain-controls {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.35em;
+  align-items: center;
+}
+
+.arcade-explain-step p {
+  margin: 0;
+  color: var(--thinka-text);
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.arcade-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5em;
+  height: 2.5em;
+  padding: 0 0.45em;
+  border-radius: 12px;
+  border: 2px solid rgba(248, 250, 252, 0.35);
+  background: var(--thinka-panel);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+  color: var(--thinka-text-strong);
+  font-family: var(--thinka-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.arcade-key--small {
+  min-width: 0;
+  height: auto;
+  padding: 0.15em 0.45em;
+  border-radius: 8px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+  font-size: 0.85rem;
+}
+
+.arcade-explain-pointer {
+  width: 3.2em;
+  height: 3.2em;
+  display: block;
+}
+
+.arcade-explain-go {
+  font-size: 1.35rem;
+  padding: 0.65em 2.4em;
+  margin: 0.2em 0 0.35em;
+}
+
+.arcade-explain-start {
+  margin: 0;
+  color: var(--thinka-muted);
+  font-size: 0.95rem;
+}
+
+.arcade-explain-start .arcade-key {
+  margin: 0 0.15em;
+  vertical-align: middle;
+}
+
 /* --------------------------------------------------------------- Overlay */
 
 .arcade-overlay {
@@ -772,6 +949,15 @@ body.arcade-app {
   /* Play screen */
   .arcade-meta {
     margin: 0.15em 0 0.35em;
+  }
+  .arcade-explain-title {
+    font-size: 1.6rem;
+  }
+  .arcade-explain-goal {
+    font-size: 1rem;
+  }
+  .arcade-explain-go {
+    font-size: 1.15rem;
   }
   .arcade-level-title {
     font-size: 1.35rem;

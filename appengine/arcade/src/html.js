@@ -52,9 +52,15 @@ Arcade.html.play = function(ij, appName, zone, backHtml) {
 ${BlocklyGames.html.headerBar(ij, appName, suffix, false, true, backHtml)}
 <div class="arcade-page arcade-page--play arcade-page--${BlocklyGames.esc(zone.id)}">
   <div class="arcade-meta">
-    <p class="arcade-kicker" id="arcadeKicker"></p>
-    <h2 class="arcade-level-title" id="arcadeLevelTitle"></h2>
-    <p class="arcade-hint" id="arcadeHint"></p>
+    <div class="arcade-meta-copy">
+      <p class="arcade-kicker" id="arcadeKicker"></p>
+      <h2 class="arcade-level-title" id="arcadeLevelTitle"></h2>
+      <p class="arcade-hint" id="arcadeHint"></p>
+    </div>
+    <button type="button" class="arcade-how" id="arcadeHow">
+      <span class="arcade-how-mark" aria-hidden="true">?</span>
+      How to play
+    </button>
   </div>
   <div class="arcade-hud" id="arcadeHud">
     <div class="arcade-stat">
@@ -86,8 +92,46 @@ ${BlocklyGames.html.headerBar(ij, appName, suffix, false, true, backHtml)}
   </div>
   <p class="arcade-foot" id="arcadeFoot"></p>
 </div>
+${Arcade.html.explainer_()}
 ${Arcade.html.overlays_()}
 `;
+};
+
+/**
+ * How-to card.  Filled from the zone's explainer before the round starts.
+ * @returns {string} HTML.
+ * @private
+ */
+Arcade.html.explainer_ = function() {
+  return `
+<div id="arcadeExplain" class="arcade-explain" hidden>
+  <div class="arcade-explain-card" role="dialog" aria-modal="true"
+      aria-labelledby="arcadeExplainTitle">
+    <p class="arcade-explain-kicker">How to play</p>
+    <h2 class="arcade-explain-title" id="arcadeExplainTitle"></h2>
+    <p class="arcade-explain-goal" id="arcadeExplainGoal"></p>
+    <div class="arcade-explain-steps" id="arcadeExplainSteps"></div>
+    <button type="button" class="primary arcade-explain-go" id="arcadeExplainGo">Let's go</button>
+    <p class="arcade-explain-start">or press
+      <kbd class="arcade-key arcade-key--small">Enter</kbd>
+      <kbd class="arcade-key arcade-key--small">Space</kbd>
+    </p>
+  </div>
+</div>
+`;
+};
+
+/**
+ * Mouse-and-finger mark for a pointer step.  Inline so the card stays offline.
+ * @returns {string} SVG markup.
+ */
+Arcade.html.pointerIcon = function() {
+  return `
+<svg class="arcade-explain-pointer" viewBox="0 0 64 64" aria-hidden="true">
+  <circle cx="32" cy="32" r="30" fill="#121F12" stroke="#60A5FA" stroke-width="3"/>
+  <path d="M24 14 v22 l6 -5 5 12 5 -2 -5 -12 h10 z" fill="#F8FAFC"/>
+  <circle cx="46" cy="18" r="6" fill="none" stroke="#FACC15" stroke-width="3"/>
+</svg>`;
 };
 
 /**

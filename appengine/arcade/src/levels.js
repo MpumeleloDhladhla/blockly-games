@@ -313,6 +313,11 @@ Arcade.Levels.rows_ = function(titles, hints, fields) {
  *
  * Zone-specific fields are documented on each zone.
  *
+ * Each zone also has an `explainer` shown the first time that game is
+ * opened.  `goal` is one short line.  `steps` are the real controls:
+ * `keys` for keyboard (with the key faces to draw) or `pointer` for
+ * mouse and touch.  A step never mentions a control the zone lacks.
+ *
  * @type {!Object<string, !Object>}
  */
 Arcade.Levels.ZONES = {
@@ -328,6 +333,15 @@ Arcade.Levels.ZONES = {
     help: 'Bubbles appear one at a time. Click a bubble to pop it and score. ' +
         'Let it float away and you lose the point. From level 5 there are ' +
         'red bombs — leave those alone!',
+    explainer: {
+      goal: 'Pop the blue bubbles before they float away.',
+      steps: [
+        {
+          kind: 'pointer',
+          text: 'Click or tap a bubble. Leave the red bombs alone.',
+        },
+      ],
+    },
     levels: Arcade.Levels.rows_([
       'Giant bubbles',
       'Big and slow',
@@ -364,6 +378,15 @@ Arcade.Levels.ZONES = {
     help: 'Hold the mouse button down on a shape, drag it onto the matching ' +
         'outline, then let go. Drop it in the wrong place and it springs ' +
         'back. Finish before the clock empties.',
+    explainer: {
+      goal: 'Drag each shape onto its matching outline.',
+      steps: [
+        {
+          kind: 'pointer',
+          text: 'Press and hold with the mouse or your finger, then drop the shape on its outline.',
+        },
+      ],
+    },
     levels: Arcade.Levels.rows_([
       'Four giant shapes',
       'Still roomy',
@@ -403,6 +426,16 @@ Arcade.Levels.ZONES = {
     help: 'Press the left and right arrow keys to slide the basket. Catch ' +
         'the falling stars. Later on, rocks fall too — let those hit the ' +
         'ground.',
+    explainer: {
+      goal: 'Catch the falling stars. Let the rocks miss the basket.',
+      steps: [
+        {
+          kind: 'keys',
+          keys: ['\u2190', '\u2192'],
+          text: 'Use the arrow keys to move the basket and catch.',
+        },
+      ],
+    },
     levels: Arcade.Levels.rows_([
       'Super slow stars',
       'Easy catches',
@@ -439,6 +472,16 @@ Arcade.Levels.ZONES = {
     blurb: 'A key lights up. Press it fast.',
     help: 'One key appears on screen. Press that key before the bar runs ' +
         'out. Wrong keys cost points, so look before you press.',
+    explainer: {
+      goal: 'Press the letter that lights up before the bar runs out.',
+      steps: [
+        {
+          kind: 'keys',
+          keys: ['A'],
+          text: 'Look at the letter, then press that key.',
+        },
+      ],
+    },
     levels: Arcade.Levels.rows_([
       'Just A S D F',
       'Slow home row',
@@ -480,6 +523,20 @@ Arcade.Levels.ZONES = {
     help: 'Each target has a letter on it. Click the target with the mouse ' +
         'first, then press that letter on the keyboard. Both steps, in ' +
         'order, before the timer runs out.',
+    explainer: {
+      goal: 'Click the target, then press the letter on it.',
+      steps: [
+        {
+          kind: 'pointer',
+          text: 'Click or tap the circle first.',
+        },
+        {
+          kind: 'keys',
+          keys: ['A'],
+          text: 'Then press the letter you see.',
+        },
+      ],
+    },
     levels: Arcade.Levels.rows_([
       'One big letter',
       'Slow click and press',

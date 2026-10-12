@@ -66,7 +66,7 @@ Arcade is the free-play game: pure scoring, no locks, so a whole class can compe
 
 1. Open `http://127.0.0.1:8088/` and click the **Arcade** tile.
 2. Tap **Playing as** and type a name. Scores are filed under that name.
-3. Five zones, six levels each. The first two levels of every zone are slow warm-ups for younger kids. Then the rounds climb: **Pop** (click the bubbles, dodge the bombs), **Drag** (drop shapes on their outlines), **Catch** (arrow keys, catch the stars), **Zap** (press the key that lights up), and **Combo** (click the target, then press its letter).
+3. Five zones, six levels each. The first two levels of every zone are slow warm-ups for younger kids. The first visit to a zone shows a how-to card (the controls, and the goal in one line). **Let's go**, Enter, or Space starts the round. **How to play** brings the card back. Then the rounds climb: **Pop** (click or tap the bubbles, dodge the bombs), **Drag** (drop shapes on their outlines), **Catch** (arrow keys only, catch the stars), **Zap** (press the key that lights up), and **Combo** (click the target, then press its letter).
 4. **Champions** in the header shows the top five per level plus the overall ranking.
 
 Scoring is the same everywhere: a hit is 100 points plus a streak bonus, a miss costs 25, and finishing early pays a time bonus. Two stars at the level's par score, three at its target. Speed, size, timers, and Catch's basket width live as named arrays in `appengine/arcade/src/levels.js`.

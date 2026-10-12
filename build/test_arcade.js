@@ -253,6 +253,55 @@ test('a save that already reached level 5 is not shifted', () => {
   assert.strictEqual(store.arcade_curriculum, '6');
 });
 
+test('each zone has a how-to card that names only its real controls', () => {
+  const pointerWords = /click|tap|mouse|finger|touch/i;
+  for (const id of Levels.ZONE_IDS) {
+    const zone = Levels.getZone(id);
+    const card = zone.explainer;
+    assert.ok(card && card.goal && card.steps && card.steps.length,
+        id + ' needs an explainer');
+    assert.ok(card.goal.length < 90, id + ' goal should stay one short line');
+    const kinds = card.steps.map((step) => step.kind);
+    const words = card.steps.map((step) => step.text).join(' ');
+    if (zone.input === 'keys') {
+      assert.ok(kinds.indexOf('pointer') === -1,
+          id + ' must not show a mouse or touch control');
+      assert.doesNotMatch(words, pointerWords, id);
+      assert.ok(kinds.indexOf('keys') !== -1, id);
+    }
+    if (zone.input === 'mouse') {
+      assert.deepStrictEqual(plain(kinds), ['pointer'], id);
+      assert.match(words, /click or tap|mouse or your finger/i, id);
+    }
+    if (zone.input === 'both') {
+      assert.ok(kinds.indexOf('pointer') !== -1, id);
+      assert.ok(kinds.indexOf('keys') !== -1, id);
+    }
+    for (const step of card.steps) {
+      assert.ok(step.text, id + ' step needs words');
+      if (step.kind === 'keys') {
+        assert.ok(step.keys && step.keys.length, id + ' keys need faces');
+      }
+    }
+  }
+  const catchCard = Levels.getZone('catch').explainer;
+  assert.deepStrictEqual(plain(catchCard.steps[0].keys), ['\u2190', '\u2192']);
+  assert.match(catchCard.steps[0].text, /arrow keys to move the basket/);
+  assert.match(catchCard.goal, /Catch the falling stars/);
+
+  const main = read('appengine/arcade/src/main.js');
+  assert.match(main, /ThinkaConfig\.explainedKey\(zone\.storage\)/);
+  assert.match(main, /showExplainer\(true\)/);
+  assert.match(main, /Let's go/);
+  assert.match(main, /e\.key === 'Enter' \|\| e\.key === ' '/);
+  const page = read('appengine/arcade/src/html.js');
+  assert.match(page, /id="arcadeHow"/);
+  assert.match(page, /How to play/);
+  assert.match(page, /id="arcadeExplain"/);
+  assert.match(page, /id="arcadeExplainGo"/);
+  assert.match(page, /Let's go/);
+});
+
 test('difficulty climbs across each zone', () => {
   for (const id of Levels.ZONE_IDS) {
     const levels = Levels.getZone(id).levels;
@@ -550,6 +599,9 @@ test('hub Clear data removes the leaderboard and the player name', () => {
   // The purge has to actually run inside clearData.
   const clearData = hub.match(/function clearData\(\)[\s\S]*?\n  \}/)[0];
   assert.match(clearData, /ARCADE_EXTRA_KEYS/);
+  // How-to cards are stored as arcade_pop_explained and the same suffix
+  // on the other zones, which this loop already removes.
+  assert.match(clearData, /_explained/);
 });
 
 test('Arcade is a first-class game in the hub and the build', () => {

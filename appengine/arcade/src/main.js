@@ -23,6 +23,7 @@ goog.require('Arcade.Levels');
 goog.require('Arcade.Scoring');
 goog.require('Arcade.html');
 goog.require('BlocklyGames');
+goog.require('ThinkaConfig');
 
 
 /**
@@ -177,8 +178,22 @@ function initPlay(zone) {
   if (startButton) {
     BlocklyGames.bindClick(startButton, startRound);
   }
+  const how = BlocklyGames.getElementById('arcadeHow');
+  if (how) {
+    BlocklyGames.bindClick(how, function() {
+      showExplainer(false);
+    });
+  }
+  const letsGo = BlocklyGames.getElementById('arcadeExplainGo');
+  if (letsGo) {
+    BlocklyGames.bindClick(letsGo, onExplainGo);
+  }
   document.addEventListener('keydown', onDocumentKey, true);
   window.addEventListener('blur', pauseOnBlur);
+  // First visit to this game type: show the controls before anything moves.
+  if (!hasSeenExplainer(zone)) {
+    showExplainer(true);
+  }
 }
 
 /**
@@ -816,6 +831,161 @@ function overlayOpen() {
   return !!(overlay && !overlay.hidden);
 }
 
+/**
+ * True while the how-to card is covering the playfield.
+ * @returns {boolean} True if the explainer is open.
+ */
+function explainerOpen() {
+  const card = BlocklyGames.getElementById('arcadeExplain');
+  return !!(card && !card.hidden);
+}
+
+/**
+ * True once this zone's how-to card has been dismissed on this browser.
+ * @param {!Object} zone Zone record.
+ * @returns {boolean} True if the child has already seen it.
+ */
+function hasSeenExplainer(zone) {
+  const store = storage();
+  if (!store || !zone) {
+    return false;
+  }
+  try {
+    return !!store[ThinkaConfig.explainedKey(zone.storage)];
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Remember that this game type's how-to card has been read.
+ * @param {!Object} zone Zone record.
+ */
+function markExplainerSeen(zone) {
+  const store = storage();
+  if (!store || !zone) {
+    return;
+  }
+  try {
+    store[ThinkaConfig.explainedKey(zone.storage)] = '1';
+  } catch (e) {
+    // Quota or SecurityError. The card can show again next visit.
+  }
+}
+
+/**
+ * A round is on screen and still going.
+ * @returns {boolean} True if play is live.
+ * @private
+ */
+function roundIsLive_() {
+  return !!(Arcade.engine && Arcade.engine.started && !Arcade.engine.ended &&
+      Arcade.play_);
+}
+
+/**
+ * Keep the playfield from taking clicks or keys while the card is up.
+ * @param {boolean} locked True to freeze the page behind the card.
+ * @private
+ */
+function setPageInert_(locked) {
+  const page = document.querySelector('.arcade-page');
+  const header = document.querySelector('.thinka-header');
+  // Quoted so ADVANCED compile keeps the DOM property name.
+  if (page) {
+    page['inert'] = locked;
+  }
+  if (header) {
+    header['inert'] = locked;
+  }
+}
+
+/**
+ * Fill and open the how-to card.  The round stays put until Let's go.
+ * @param {boolean=} auto True when this is the automatic first-play open.
+ */
+function showExplainer(auto) {
+  const card = BlocklyGames.getElementById('arcadeExplain');
+  const zone = Arcade.zone;
+  if (!card || !zone || !zone.explainer) {
+    return;
+  }
+  text('arcadeExplainTitle', zone.title);
+  text('arcadeExplainGoal', zone.explainer.goal);
+  const steps = BlocklyGames.getElementById('arcadeExplainSteps');
+  if (steps) {
+    steps.textContent = '';
+    const list = zone.explainer.steps || [];
+    for (let i = 0; i < list.length; i++) {
+      steps.appendChild(explainerStep_(list[i]));
+    }
+  }
+  const go = BlocklyGames.getElementById('arcadeExplainGo');
+  if (go) {
+    go.textContent = roundIsLive_() ? 'Back to the game' : "Let's go";
+  }
+  card.hidden = false;
+  setPageInert_(true);
+  if (go) {
+    go.focus();
+  }
+  if (auto) {
+    card.setAttribute('data-first', '1');
+  }
+}
+
+/**
+ * One control row: key faces or a pointer mark, plus the sentence.
+ * @param {!Object} step Step record from the zone explainer.
+ * @returns {!Element} Row.
+ * @private
+ */
+function explainerStep_(step) {
+  const row = document.createElement('div');
+  row.className = 'arcade-explain-step';
+  const controls = document.createElement('div');
+  controls.className = 'arcade-explain-controls';
+  if (step.kind === 'keys') {
+    const keys = step.keys || [];
+    for (let i = 0; i < keys.length; i++) {
+      const key = document.createElement('kbd');
+      key.className = 'arcade-key';
+      key.textContent = keys[i];
+      controls.appendChild(key);
+    }
+  } else {
+    const icon = document.createElement('span');
+    icon.innerHTML = Arcade.html.pointerIcon();
+    controls.appendChild(icon);
+  }
+  const copy = document.createElement('p');
+  copy.textContent = step.text || '';
+  row.appendChild(controls);
+  row.appendChild(copy);
+  return row;
+}
+
+/**
+ * Let's go / Enter / Space.  Starts the round only when one is not already
+ * running, so reopening the card mid-game does not wipe it.
+ */
+function onExplainGo() {
+  const card = BlocklyGames.getElementById('arcadeExplain');
+  if (!card || card.hidden) {
+    return;
+  }
+  const live = roundIsLive_();
+  card.hidden = true;
+  card.removeAttribute('data-first');
+  setPageInert_(false);
+  if (Arcade.zone) {
+    markExplainerSeen(Arcade.zone);
+  }
+  if (!live && !overlayOpen()) {
+    startRound();
+  }
+}
+
 
 // ---------------------------------------------------------------------------
 // Input
@@ -826,6 +996,14 @@ function overlayOpen() {
  * @param {!Event} e Keyboard event.
  */
 function onDocumentKey(e) {
+  if (explainerOpen()) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      onExplainGo();
+    }
+    return;
+  }
   if (overlayOpen()) {
     return;
   }
