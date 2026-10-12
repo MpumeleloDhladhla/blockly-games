@@ -1009,6 +1009,12 @@ body.arcade-app {
     height: min(42vh, 22em);
     margin-top: 0.4em;
   }
+  /* Pop and Catch only. Pieces are placed as fractions of the stage,
+     so the extra height scales the playfield without a pixel fall speed. */
+  .arcade-page--pop .arcade-stage,
+  .arcade-page--catch .arcade-stage {
+    height: calc(min(42vh, 22em) + 20px);
+  }
   .arcade-stage-go {
     font-size: 1.45rem;
   }
@@ -1032,5 +1038,9 @@ body.arcade-app {
   }
   .arcade-stage {
     height: min(38vh, 18em);
+  }
+  .arcade-page--pop .arcade-stage,
+  .arcade-page--catch .arcade-stage {
+    height: calc(min(38vh, 18em) + 20px);
   }
 }

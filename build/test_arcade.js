@@ -710,6 +710,36 @@ test('Arcade is a first-class game in the hub and the build', () => {
       'json/qqq.json needs Games.arcade');
 });
 
+test('Pop and Catch stages are 20px taller than the shared playfield', () => {
+  const style = read('appengine/arcade/style.css');
+  const short = style.match(/@media \(max-height: 800px\) \{([\s\S]*?)\n\}/);
+  const shorter = style.match(/@media \(max-height: 700px\) \{([\s\S]*?)\n\}/);
+  assert.ok(short, 'short-screen stage rule missing');
+  assert.ok(shorter, 'shorter-screen stage rule missing');
+  assert.match(short[1], /height: min\(42vh, 22em\);/);
+  assert.match(short[1],
+      /\.arcade-page--pop \.arcade-stage,\s*\.arcade-page--catch \.arcade-stage \{\s*height: calc\(min\(42vh, 22em\) \+ 20px\);/);
+  assert.doesNotMatch(short[1], /arcade-page--(?:drag|zap|combo)/);
+  assert.match(shorter[1], /height: min\(38vh, 18em\);/);
+  assert.match(shorter[1],
+      /\.arcade-page--pop \.arcade-stage,\s*\.arcade-page--catch \.arcade-stage \{\s*height: calc\(min\(38vh, 18em\) \+ 20px\);/);
+  assert.doesNotMatch(shorter[1], /arcade-page--(?:drag|zap|combo)/);
+});
+
+test('Catch falls on a timer and Pop spawns across the stage height', () => {
+  const main = read('appengine/arcade/src/main.js');
+  // Basket centre stays near the bottom as a fraction of the stage.
+  assert.match(main, /placeAt\(basket, basketX, 0\.9\)/);
+  // Fall duration is level.fallMs, not a pixel speed.
+  assert.match(main, /const progress = \(now - item\.bornAt\) \/ level\.fallMs/);
+  assert.match(main, /placeAt\(item\.el, item\.x, progress \* 0\.88\)/);
+  // Basket travel is horizontal px/s against the stage width.
+  assert.match(main, /\(level\.speed \* dt\) \/ stageWidth/);
+  assert.match(main, /spot = randomSpot\(level\.size\)/);
+  assert.match(main,
+      /const marginY = rect\.height \? Math\.min\(0\.45, \(sizePx \/ 2 \+ 8\) \/ rect\.height\) : 0\.1/);
+});
+
 test('the page shell is offline-first', () => {
   const page = read('appengine/arcade.html');
   const home = read('appengine/arcade/src/html.js');
