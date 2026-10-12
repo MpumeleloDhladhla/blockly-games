@@ -31,7 +31,7 @@ ${BlocklyGames.html.headerBar(ij, appName, '', false, true, championsHtml)}
     <span class="arcade-player-label">Playing as</span>
     <button type="button" class="arcade-player-name" id="arcadePlayerName"></button>
   </div>
-  <p class="arcade-intro">Five games. ${Arcade.Levels.totalLevels()} levels. The first two in each game are slow and easy.</p>
+  <p class="arcade-intro">Five games. ${Arcade.Levels.totalLevels()} levels. Each game starts slow, and the last level is a long one.</p>
   <div class="arcade-zones" id="arcadeZones"></div>
 </div>
 ${Arcade.html.overlays_()}

@@ -80,8 +80,9 @@ function init() {
   // compete on the same one.  Skip the shared sequential-lock pass.
   // ThinkaConfig.isTeacherPasswordOn() is not consulted here on purpose.
   // Progress, stars, and any per-level teacher-unlock flags still use the
-  // shared localStorage keys.  Two warm-up levels sit in front of the
-  // original four, so older saves are shifted before any screen reads them.
+  // shared localStorage keys.  Each zone grew from four levels to six,
+  // with the two new ones in front, so older saves are shifted before
+  // any screen reads them.
   BlocklyGames.SKIP_LEVEL_LOCKS = true;
   Arcade.Levels.migrateStorage(storage());
 

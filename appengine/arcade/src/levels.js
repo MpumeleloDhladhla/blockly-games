@@ -8,10 +8,12 @@
  * @fileoverview Zones and levels for the Arcade skills game.
  *
  * Five zones drill mouse control, keyboard control, or both together.
- * Every zone starts with two warm-up levels for younger kids, then four
- * that tighten size, speed, count, or timer.  The numbers live in the
- * named arrays below so a teacher can retune a round without hunting
- * through the level copy.
+ * Every zone has six levels: two extra ones folded into that game.
+ * The first levels are slower than the original openings.  The last
+ * levels are slower than the original finales, and longer (more
+ * bubbles, drops, or keys, or a longer drag clock).  The numbers live
+ * in the named arrays below so a teacher can retune a round without
+ * hunting through the level copy.
  *
  * Each level declares `par` and `target` scores, which are the two and
  * three star thresholds (see Arcade.Scoring.starsFor).
@@ -28,20 +30,20 @@ goog.provide('Arcade.Levels');
 Arcade.Levels.ZONE_IDS = ['pop', 'drag', 'catch', 'zap', 'combo'];
 
 /**
- * Levels in each zone: two warm-ups, then four that climb.
+ * Levels in each zone.  Two were added to the original four.
  * @type {number}
  */
 Arcade.Levels.LEVELS_PER_ZONE = 6;
 
 /**
- * How many warm-up levels were inserted in front of the original four.
+ * How many levels were inserted in front of the original four.
  * Used when shifting localStorage progress from the first Arcade release.
  * @type {number}
  */
 Arcade.Levels.WARMUP_COUNT = 2;
 
 /**
- * Level count of the original curriculum, before the warm-ups.
+ * Level count of the original curriculum, before the two extra levels.
  * @type {number}
  */
 Arcade.Levels.LEGACY_LEVELS = 4;
@@ -103,100 +105,106 @@ Arcade.Levels.WIDE_KEYS_ = Arcade.Levels.LETTER_KEYS_ + '0123456789';
 
 /**
  * Pop: bubble diameter in px.  Bigger is easier to click.
- * Index 0 is warm-up 1.
  * @type {!Array<number>}
  */
-Arcade.Levels.POP_SIZE = [140, 122, 108, 94, 80, 68];
+Arcade.Levels.POP_SIZE = [140, 120, 104, 90, 76, 64];
 
 /**
- * Pop: milliseconds before a bubble floats away.
+ * Pop: milliseconds before a bubble floats away.  Higher is slower.
+ * The last two stay well above the original 1300ms finale.
  * @type {!Array<number>}
  */
-Arcade.Levels.POP_LIFE = [5600, 4600, 3800, 3200, 2700, 2300];
+Arcade.Levels.POP_LIFE = [5200, 4200, 3400, 2800, 2400, 2100];
 
 /**
- * Pop: scoring chances (good bubbles) in the round.
+ * Pop: scoring chances (good bubbles).  The last two are longer than
+ * the original 18-bubble finale.
  * @type {!Array<number>}
  */
-Arcade.Levels.POP_ROUNDS = [6, 8, 10, 12, 14, 16];
+Arcade.Levels.POP_ROUNDS = [8, 10, 12, 14, 20, 24];
 
 /**
- * Pop: bomb bubbles mixed into the round.  Warm-ups have none.
+ * Pop: bomb bubbles mixed into the round.  The opening levels have none.
  * @type {!Array<number>}
  */
-Arcade.Levels.POP_BOMBS = [0, 0, 0, 0, 2, 3];
+Arcade.Levels.POP_BOMBS = [0, 0, 0, 0, 3, 5];
 
 /**
  * Pop: score for two stars.
  * @type {!Array<number>}
  */
-Arcade.Levels.POP_PAR = [350, 550, 800, 1050, 1300, 1550];
+Arcade.Levels.POP_PAR = [500, 750, 1000, 1300, 1700, 2100];
 
 /**
  * Pop: score for three stars.
  * @type {!Array<number>}
  */
-Arcade.Levels.POP_TARGET = [600, 900, 1250, 1650, 2000, 2350];
+Arcade.Levels.POP_TARGET = [900, 1200, 1600, 1900, 2500, 3200];
 
 /**
  * Drag: shape size in px.
  * @type {!Array<number>}
  */
-Arcade.Levels.DRAG_SIZE = [118, 108, 98, 88, 78, 68];
+Arcade.Levels.DRAG_SIZE = [118, 106, 94, 82, 72, 64];
 
 /**
  * Drag: how close to the slot centre (px) still counts as a drop.
+ * The last level stays looser than the original 30px finale.
  * @type {!Array<number>}
  */
-Arcade.Levels.DRAG_SLACK = [96, 84, 72, 60, 50, 42];
+Arcade.Levels.DRAG_SLACK = [96, 82, 68, 56, 46, 38];
 
 /**
- * Drag: whole-round clock in ms.
+ * Drag: whole-round clock in ms.  Drag cannot draw more than seven
+ * shapes, so the last level gets longer by keeping the clock up.
  * @type {!Array<number>}
  */
-Arcade.Levels.DRAG_TIME = [80000, 72000, 64000, 58000, 52000, 48000];
+Arcade.Levels.DRAG_TIME = [70000, 65000, 60000, 56000, 52000, 64000];
 
 /**
  * Drag: shapes to place.  Never more than the seven shapes the game draws.
  * @type {!Array<number>}
  */
-Arcade.Levels.DRAG_ROUNDS = [4, 4, 4, 5, 6, 7];
+Arcade.Levels.DRAG_ROUNDS = [4, 4, 5, 6, 7, 7];
 
 /**
  * Drag: score for two stars.
  * @type {!Array<number>}
  */
-Arcade.Levels.DRAG_PAR = [250, 400, 560, 750, 960, 1180];
+Arcade.Levels.DRAG_PAR = [250, 380, 500, 650, 800, 950];
 
 /**
  * Drag: score for three stars.
  * @type {!Array<number>}
  */
-Arcade.Levels.DRAG_TARGET = [450, 650, 900, 1150, 1450, 1750];
+Arcade.Levels.DRAG_TARGET = [450, 500, 680, 900, 1150, 1180];
 
 /**
  * Catch: ms for an item to fall from top to bottom.  Higher is slower.
+ * The last two stay slower than the original 2200ms finale.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_FALL = [7200, 6200, 5400, 4600, 4000, 3400];
+Arcade.Levels.CATCH_FALL = [7000, 5800, 4800, 4000, 3400, 3000];
 
 /**
  * Catch: basket speed in px per second.  Lower is easier to steer.
+ * The last level stays under the original 540px/s finale.
  * @type {!Array<number>}
  */
 Arcade.Levels.CATCH_SPEED = [220, 260, 300, 340, 380, 420];
 
 /**
- * Catch: good items to catch.
+ * Catch: good items to catch.  The last two are longer than the
+ * original 16-drop finale.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_ROUNDS = [6, 8, 10, 12, 14, 16];
+Arcade.Levels.CATCH_ROUNDS = [8, 10, 12, 14, 18, 22];
 
 /**
- * Catch: rocks to dodge.  Warm-ups have none.
+ * Catch: rocks to dodge.  The opening levels have none.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_BAD = [0, 0, 0, 2, 3, 4];
+Arcade.Levels.CATCH_BAD = [0, 0, 0, 3, 4, 5];
 
 /**
  * Catch: basket width as a fraction of the stage.  Wider is more forgiving.
@@ -209,73 +217,77 @@ Arcade.Levels.CATCH_BASKET = [0.34, 0.30, 0.28, 0.26, 0.24, 0.22];
  * on screen at once.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_GAP = [1.05, 0.95, 0.88, 0.80, 0.72, 0.66];
+Arcade.Levels.CATCH_GAP = [1.05, 0.95, 0.85, 0.78, 0.70, 0.64];
 
 /**
  * Catch: score for two stars.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_PAR = [400, 600, 850, 1100, 1350, 1600];
+Arcade.Levels.CATCH_PAR = [500, 750, 1000, 1300, 1700, 2100];
 
 /**
  * Catch: score for three stars.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_TARGET = [650, 950, 1300, 1650, 2000, 2400];
+Arcade.Levels.CATCH_TARGET = [850, 1200, 1600, 2000, 2600, 3200];
 
 /**
- * Zap: ms to press the lit key.
+ * Zap: ms to press the lit key.  The last two stay slower than the
+ * original 1500ms finale.
  * @type {!Array<number>}
  */
-Arcade.Levels.ZAP_LIFE = [5600, 4600, 4000, 3300, 2800, 2400];
+Arcade.Levels.ZAP_LIFE = [5200, 4200, 3400, 2800, 2400, 2100];
 
 /**
- * Zap: scoring chances.
+ * Zap: scoring chances.  The last two are longer than the original
+ * 16-key finale.
  * @type {!Array<number>}
  */
-Arcade.Levels.ZAP_ROUNDS = [6, 8, 10, 12, 14, 16];
+Arcade.Levels.ZAP_ROUNDS = [8, 10, 12, 14, 18, 22];
 
 /**
  * Zap: score for two stars.
  * @type {!Array<number>}
  */
-Arcade.Levels.ZAP_PAR = [400, 600, 850, 1100, 1350, 1600];
+Arcade.Levels.ZAP_PAR = [500, 750, 1000, 1300, 1700, 2100];
 
 /**
  * Zap: score for three stars.
  * @type {!Array<number>}
  */
-Arcade.Levels.ZAP_TARGET = [650, 950, 1300, 1650, 2000, 2400];
+Arcade.Levels.ZAP_TARGET = [850, 1200, 1600, 2000, 2600, 3200];
 
 /**
  * Combo: target diameter in px.
  * @type {!Array<number>}
  */
-Arcade.Levels.COMBO_SIZE = [136, 120, 108, 96, 84, 74];
+Arcade.Levels.COMBO_SIZE = [132, 116, 102, 88, 76, 68];
 
 /**
  * Combo: ms to click the target and then press its letter.
+ * The last two stay slower than the original 2100ms finale.
  * @type {!Array<number>}
  */
-Arcade.Levels.COMBO_LIFE = [7000, 5800, 5000, 4200, 3600, 3100];
+Arcade.Levels.COMBO_LIFE = [6400, 5200, 4200, 3600, 3000, 2700];
 
 /**
- * Combo: scoring chances.
+ * Combo: scoring chances.  The last two are longer than the original
+ * 14-target finale.
  * @type {!Array<number>}
  */
-Arcade.Levels.COMBO_ROUNDS = [4, 6, 8, 10, 12, 14];
+Arcade.Levels.COMBO_ROUNDS = [6, 8, 10, 12, 16, 18];
 
 /**
  * Combo: score for two stars.
  * @type {!Array<number>}
  */
-Arcade.Levels.COMBO_PAR = [280, 450, 650, 880, 1120, 1360];
+Arcade.Levels.COMBO_PAR = [350, 550, 800, 1050, 1400, 1750];
 
 /**
  * Combo: score for three stars.
  * @type {!Array<number>}
  */
-Arcade.Levels.COMBO_TARGET = [480, 720, 1050, 1350, 1700, 2050];
+Arcade.Levels.COMBO_TARGET = [600, 900, 1200, 1600, 2100, 2600];
 
 
 /**
@@ -346,16 +358,16 @@ Arcade.Levels.ZONES = {
       'Giant bubbles',
       'Big and slow',
       'Big bubbles',
-      'Smaller and quicker',
+      'A little smaller',
       'Mind the bombs',
-      'Sharp shooter',
+      'Long stretch',
     ], [
       'Huge bubbles and lots of time. Click the middle.',
       'Still big and slow. Click before they float away.',
       'Nice and big. Move the mouse, then click in the middle.',
       'A little smaller now. Aim before you click.',
       'Blue bubbles score. Red bombs cost you — do not click them.',
-      'Smaller and a bit faster. Steady hand wins.',
+      'Lots of bubbles, and each one stays up a while. Take your time.',
     ], {
       rounds: Arcade.Levels.POP_ROUNDS,
       size: Arcade.Levels.POP_SIZE,
@@ -390,17 +402,17 @@ Arcade.Levels.ZONES = {
     levels: Arcade.Levels.rows_([
       'Four giant shapes',
       'Still roomy',
-      'Four shapes',
       'Five shapes',
-      'Smaller slots',
-      'Steady hands',
+      'Six shapes',
+      'Seven shapes',
+      'Long haul',
     ], [
       'Big shapes, wide outlines, a long clock. Press, hold, drag, drop.',
       'Same four shapes. The outlines are still generous.',
-      'Press, hold, drag, drop. Take your time.',
-      'One more shape. Drop it close to the middle.',
-      'The outlines are tighter now. Aim carefully.',
-      'Smallest shapes. You have got this.',
+      'Five shapes now. Take your time.',
+      'Six shapes. Drop each one close to the middle.',
+      'Seven shapes. The outlines are a little tighter.',
+      'Same seven shapes, and a long clock. No rush.',
     ], {
       rounds: Arcade.Levels.DRAG_ROUNDS,
       size: Arcade.Levels.DRAG_SIZE,
@@ -439,17 +451,17 @@ Arcade.Levels.ZONES = {
     levels: Arcade.Levels.rows_([
       'Super slow stars',
       'Easy catches',
-      'First catches',
+      'Slow stars',
       'A few rocks',
-      'Falling faster',
-      'Busy sky',
+      'A long sky',
+      'Star marathon',
     ], [
       'A wide basket and very slow stars. Left and right arrow keys.',
       'Still no rocks. Watch the top, then slide.',
       'Left and right arrow keys. Slow and friendly.',
       'Stars are good. Rocks are not — slide out of the way.',
-      'Quicker drops. Watch the top of the screen.',
-      'A bit busier. Plan your next move early.',
+      'More stars, still falling slowly. Watch the top.',
+      'The long one. Slow stars, and a lot of them.',
     ], {
       rounds: Arcade.Levels.CATCH_ROUNDS,
       fallMs: Arcade.Levels.CATCH_FALL,
@@ -486,16 +498,16 @@ Arcade.Levels.ZONES = {
       'Just A S D F',
       'Slow home row',
       'Home row',
-      'Quicker home row',
+      'Home row again',
       'Whole alphabet',
       'Letters and numbers',
     ], [
       'Only A, S, D and F. Lots of time. Look, then press.',
       'Home row, still slow. Rest your fingers and wait for the letter.',
       'Rest your fingers on A S D F and J K L.',
-      'Same keys, a little less time. Do not look down.',
-      'Any letter can show up now.',
-      'Numbers join in. Reach up to the top row.',
+      'Same keys. You still have time. Do not look down.',
+      'Any letter can show up. This round is longer.',
+      'Numbers join in. A long round, and each key still waits.',
     ], {
       rounds: Arcade.Levels.ZAP_ROUNDS,
       life: Arcade.Levels.ZAP_LIFE,
@@ -543,14 +555,14 @@ Arcade.Levels.ZONES = {
       'Click then press',
       'Keep the rhythm',
       'Any letter',
-      'Arcade champion',
+      'The long round',
     ], [
       'A huge target and only A, S, D or F. Mouse first, then the key.',
       'Still slow. Leave one hand on the mouse and one on the keys.',
       'Mouse first, keyboard second. One at a time.',
       'Leave one hand on the mouse and one on the keys.',
-      'The letter could be anywhere on the keyboard.',
-      'The last one. Fast hands, sharp eyes.',
+      'The letter could be anywhere. More targets this time.',
+      'The long one. The targets stay big enough, and you have time.',
     ], {
       rounds: Arcade.Levels.COMBO_ROUNDS,
       size: Arcade.Levels.COMBO_SIZE,
@@ -821,10 +833,11 @@ Arcade.Levels.shiftLegacyProgress_ = function(storage) {
 /**
  * Bring a local save in line with the six-level zones.
  *
- * The first Arcade release stored levels 1–4.  Two warm-up rounds now sit
- * in front, so those saves move up by two (level 1 becomes level 3) and
- * the hub's done-count stays attached to the rounds the child actually
- * played.  An empty save, or one already marked with CURRICULUM_VERSION,
+ * The first Arcade release stored levels 1–4.  Two levels were added in
+ * front of each zone, so those saves move up by two (level 1 becomes
+ * level 3) and the hub's done-count stays attached to the rounds the
+ * child actually played.  An empty save, or one already marked with
+ * CURRICULUM_VERSION,
  * is left in place.  Stars and teacher-unlock keys move with the level.
  *
  * @param {Object} storage localStorage, or a stand-in.

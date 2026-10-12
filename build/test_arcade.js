@@ -165,17 +165,23 @@ test('the first two levels of every zone are a gentle on-ramp', () => {
 });
 
 test('climbing levels are slower than the original four-level curriculum', () => {
-  // Original Pop 1 was 92px / 2400ms; original Pop 4 was 52px / 1300ms / 6 bombs.
+  // Original Pop 1 was 92px / 2400ms / 12 bubbles.
+  // Original Pop 4 was 52px / 1300ms / 18 bubbles / 6 bombs.
   const pop = Levels.getZone('pop').levels;
+  assert.ok(pop[0].size > 92 && pop[0].life > 2400, 'pop opens slower');
   assert.ok(pop[2].size > 92 && pop[2].life > 2400, 'old pop 1 is now easier');
   assert.ok(pop[5].size > 52 && pop[5].life > 1300, 'old pop 4 is now easier');
+  assert.ok(pop[5].rounds > 18, 'pop finale is longer than 18 bubbles');
   assert.ok(pop[5].bombs < 6);
 
-  // Original Catch speeds were 430–540 px/s, falls 3800–2200ms, basket 0.16,
-  // spawn gap 0.55 of the fall.
+  // Original Catch 1 was fall 3800 / speed 430 / 10 drops.
+  // Original Catch 4 was fall 2200 / speed 540 / 16 drops / 7 rocks,
+  // basket 0.16, spawn gap 0.55 of the fall.
   const caught = Levels.getZone('catch').levels;
+  assert.ok(caught[0].fallMs > 3800 && caught[0].speed < 430);
   assert.ok(caught[2].fallMs > 3800 && caught[2].speed < 430);
   assert.ok(caught[5].fallMs > 2200 && caught[5].speed < 540);
+  assert.ok(caught[5].rounds > 16, 'catch finale is longer than 16 drops');
   assert.ok(caught[5].bad < 7);
   for (const level of caught) {
     assert.ok(level.basket > 0.16, 'basket stays wider than the original 0.16');
@@ -185,17 +191,55 @@ test('climbing levels are slower than the original four-level curriculum', () =>
   assert.ok(Levels.CATCH_SPAWN_GAP_DEFAULT > 0.55);
 
   const drag = Levels.getZone('drag').levels;
-  // Original drag 1: slack 58, clock 45000. Original drag 4: slack 30, clock 38000.
+  // Original drag 1: slack 58, clock 45000. Original drag 4: slack 30,
+  // clock 38000, 7 shapes (the drawing cap, so the finale grows by time).
+  assert.ok(drag[0].slack > 58 && drag[0].time > 45000);
   assert.ok(drag[2].slack > 58 && drag[2].time > 45000);
   assert.ok(drag[5].slack > 30 && drag[5].time > 38000);
+  assert.strictEqual(drag[5].rounds, 7);
+  assert.ok(drag[5].time > drag[4].time, 'the drag finale keeps the long clock');
 
   const zap = Levels.getZone('zap').levels;
+  assert.ok(zap[0].life > 2800, 'zap opens slower than the original 2800ms');
   assert.ok(zap[2].life > 2800);
   assert.ok(zap[5].life > 1500);
+  assert.ok(zap[5].rounds > 16, 'zap finale is longer than 16 keys');
 
   const combo = Levels.getZone('combo').levels;
+  assert.ok(combo[0].life > 3600 && combo[0].size > 96);
   assert.ok(combo[2].life > 3600 && combo[2].size > 96);
   assert.ok(combo[5].life > 2100 && combo[5].size > 60);
+  assert.ok(combo[5].rounds > 14, 'combo finale is longer than 14 targets');
+});
+
+test('a clean finish can still earn three stars', () => {
+  // Reaction games pay the time bonus only for seconds the child did not
+  // need, so three stars must be reachable on hits alone. Drag's clock is
+  // the whole round, so a third of it left still counts as an unhurried
+  // finish rather than a speed run.
+  function cleanScore(rounds, msLeft) {
+    let base = 0;
+    for (let hit = 1; hit <= rounds; hit++) {
+      base += Scoring.hitPoints(hit);
+    }
+    return Scoring.finalScore({
+      base: base,
+      misses: 0,
+      msLeft: msLeft,
+      done: true,
+    });
+  }
+  for (const id of Levels.ZONE_IDS) {
+    const levels = Levels.getZone(id).levels;
+    for (let i = 0; i < levels.length; i++) {
+      const level = levels[i];
+      const msLeft = id === 'drag' ? Math.floor(Engine.budgetMs(level) / 3) : 0;
+      const score = cleanScore(level.rounds, msLeft);
+      assert.ok(score >= level.target,
+          id + (i + 1) + ' clean score ' + score +
+          ' is under the three-star line ' + level.target);
+    }
+  }
 });
 
 test('an old four-level save shifts up by the two warm-ups', () => {
