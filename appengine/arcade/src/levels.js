@@ -9,11 +9,14 @@
  *
  * Five zones drill mouse control, keyboard control, or both together.
  * Every zone has six levels: two extra ones folded into that game.
- * The first levels are slower than the original openings.  The last
- * levels are slower than the original finales, and longer (more
- * bubbles, drops, or keys, or a longer drag clock).  The numbers live
- * in the named arrays below so a teacher can retune a round without
- * hunting through the level copy.
+ * Pop, Drag, Zap, and Combo open slower than the original openings,
+ * and their last levels are slower than the original finales and
+ * longer (more bubbles or keys, or a longer drag clock).  Catch keeps
+ * the original fall speed and basket, spread across six levels: level
+ * 1 matches the old opening, and level 6 matches the old finale's
+ * pace with a few extra drops.  The numbers live in the named arrays
+ * below so a teacher can retune a round without hunting through the
+ * level copy.
  *
  * Each level declares `par` and `target` scores, which are the two and
  * three star thresholds (see Arcade.Scoring.starsFor).
@@ -65,17 +68,18 @@ Arcade.Levels.CURRICULUM_VERSION = '6';
 /**
  * Basket width used when a Catch level does not set its own.
  * Fraction of the stage.  Wider is easier.
- * The original game used 0.16.
+ * The original game used 0.16, and every Catch level does too.
  * @type {number}
  */
-Arcade.Levels.CATCH_BASKET_DEFAULT = 0.24;
+Arcade.Levels.CATCH_BASKET_DEFAULT = 0.16;
 
 /**
  * Gap before the next Catch drop, as a fraction of that drop's fall time.
- * Higher means the next item waits longer.  The original game used 0.55.
+ * Higher means the next item waits longer.  The original game used 0.55,
+ * and every Catch level keeps that gap.
  * @type {number}
  */
-Arcade.Levels.CATCH_SPAWN_GAP_DEFAULT = 0.80;
+Arcade.Levels.CATCH_SPAWN_GAP_DEFAULT = 0.55;
 
 /**
  * Left-hand home keys: the smallest pool, for the first keyboard rounds.
@@ -183,55 +187,64 @@ Arcade.Levels.DRAG_TARGET = [450, 500, 680, 900, 1150, 1180];
 
 /**
  * Catch: ms for an item to fall from top to bottom.  Higher is slower.
- * The last two stay slower than the original 2200ms finale.
+ * Level 1 is the original opening (3800).  Levels 3 and 4 are the
+ * original levels 2 and 3 (3200 and 2700).  Level 6 is the original
+ * finale (2200).  Levels 2 and 5 are the midpoints.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_FALL = [7000, 5800, 4800, 4000, 3400, 3000];
+Arcade.Levels.CATCH_FALL = [3800, 3500, 3200, 2700, 2450, 2200];
 
 /**
- * Catch: basket speed in px per second.  Lower is easier to steer.
- * The last level stays under the original 540px/s finale.
+ * Catch: basket speed in px per second.
+ * Level 1 is the original 430.  Levels 3 and 4 are the original
+ * levels 2 and 3 (460 and 500).  Level 6 is the original finale, 540.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_SPEED = [220, 260, 300, 340, 380, 420];
+Arcade.Levels.CATCH_SPEED = [430, 445, 460, 500, 520, 540];
 
 /**
- * Catch: good items to catch.  The last two are longer than the
- * original 16-drop finale.
+ * Catch: good items to catch.
+ * Level 1 is the original 10.  Levels 3 and 4 keep the original
+ * 12 and 14.  Level 6 is a little longer than the original 16.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_ROUNDS = [8, 10, 12, 14, 18, 22];
+Arcade.Levels.CATCH_ROUNDS = [10, 11, 12, 14, 16, 18];
 
 /**
- * Catch: rocks to dodge.  The opening levels have none.
+ * Catch: rocks to dodge.
+ * Level 1 has none, matching the original opening.  Levels 3 and 4
+ * keep the original 3 and 5.  The finale has the original 7.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_BAD = [0, 0, 0, 3, 4, 5];
+Arcade.Levels.CATCH_BAD = [0, 2, 3, 5, 6, 7];
 
 /**
- * Catch: basket width as a fraction of the stage.  Wider is more forgiving.
+ * Catch: basket width as a fraction of the stage.
+ * The original game used 0.16 on every level.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_BASKET = [0.34, 0.30, 0.28, 0.26, 0.24, 0.22];
+Arcade.Levels.CATCH_BASKET = [0.16, 0.16, 0.16, 0.16, 0.16, 0.16];
 
 /**
- * Catch: spawn gap as a fraction of fall time.  Higher means fewer items
- * on screen at once.
+ * Catch: spawn gap as a fraction of fall time.
+ * The original game used 0.55, so the next item is already falling
+ * before the last one lands.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_GAP = [1.05, 0.95, 0.85, 0.78, 0.70, 0.64];
+Arcade.Levels.CATCH_GAP = [0.55, 0.55, 0.55, 0.55, 0.55, 0.55];
 
 /**
- * Catch: score for two stars.
+ * Catch: score for two stars.  The original lines for 10, 12, 14, and
+ * 16 drops, with the new lengths filled in between.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_PAR = [500, 750, 1000, 1300, 1700, 2100];
+Arcade.Levels.CATCH_PAR = [750, 850, 1000, 1200, 1400, 1600];
 
 /**
  * Catch: score for three stars.
  * @type {!Array<number>}
  */
-Arcade.Levels.CATCH_TARGET = [850, 1200, 1600, 2000, 2600, 3200];
+Arcade.Levels.CATCH_TARGET = [1150, 1300, 1500, 1850, 2200, 2500];
 
 /**
  * Zap: ms to press the lit key.  The last two stay slower than the
@@ -451,19 +464,19 @@ Arcade.Levels.ZONES = {
       ],
     },
     levels: Arcade.Levels.rows_([
-      'Super slow stars',
-      'Easy catches',
-      'Slow stars',
-      'A few rocks',
-      'A long sky',
-      'Star marathon',
+      'First catches',
+      'A little quicker',
+      'Rocks appear',
+      'Falling faster',
+      'Busy sky',
+      'Rock storm',
     ], [
-      'A wide basket and very slow stars. Left and right arrow keys.',
-      'Still no rocks. Watch the top, then slide.',
       'Left and right arrow keys. Slow and friendly.',
+      'A little faster. Let the rocks miss the basket.',
       'Stars are good. Rocks are not — slide out of the way.',
-      'More stars, still falling slowly. Watch the top.',
-      'The long one. Slow stars, and a lot of them.',
+      'Quicker drops. Watch the top of the screen.',
+      'Faster still. Plan your next move early.',
+      'The long one. Fast drops, and plenty of rocks.',
     ], {
       rounds: Arcade.Levels.CATCH_ROUNDS,
       fallMs: Arcade.Levels.CATCH_FALL,

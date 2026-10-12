@@ -149,9 +149,7 @@ test('the first two levels of every zone are a gentle on-ramp', () => {
   assert.ok(caught[0].fallMs > caught[2].fallMs);
   assert.ok(caught[0].speed < caught[2].speed);
   assert.strictEqual(caught[0].bad, 0);
-  assert.strictEqual(caught[1].bad, 0);
-  assert.ok(caught[0].basket > caught[caught.length - 1].basket);
-  assert.ok(caught[0].gap > caught[caught.length - 1].gap);
+  assert.ok(caught[0].rounds < caught[2].rounds);
 
   const zap = Levels.getZone('zap').levels;
   assert.ok(zap[0].life > zap[2].life);
@@ -174,21 +172,56 @@ test('climbing levels are slower than the original four-level curriculum', () =>
   assert.ok(pop[5].rounds > 18, 'pop finale is longer than 18 bubbles');
   assert.ok(pop[5].bombs < 6);
 
-  // Original Catch 1 was fall 3800 / speed 430 / 10 drops.
-  // Original Catch 4 was fall 2200 / speed 540 / 16 drops / 7 rocks,
-  // basket 0.16, spawn gap 0.55 of the fall.
+  // Catch is back on the original four-level pace, spread over six levels.
+  // Original Catch 1: fall 3800 / speed 430 / 10 drops / basket 0.16 / gap 0.55.
+  // Original Catch 2: fall 3200 / speed 460 / 12 drops / 3 rocks.
+  // Original Catch 3: fall 2700 / speed 500 / 14 drops / 5 rocks.
+  // Original Catch 4: fall 2200 / speed 540 / 16 drops / 7 rocks.
   const caught = Levels.getZone('catch').levels;
-  assert.ok(caught[0].fallMs > 3800 && caught[0].speed < 430);
-  assert.ok(caught[2].fallMs > 3800 && caught[2].speed < 430);
-  assert.ok(caught[5].fallMs > 2200 && caught[5].speed < 540);
-  assert.ok(caught[5].rounds > 16, 'catch finale is longer than 16 drops');
-  assert.ok(caught[5].bad < 7);
-  for (const level of caught) {
-    assert.ok(level.basket > 0.16, 'basket stays wider than the original 0.16');
-    assert.ok(level.gap > 0.55, 'drops stay further apart than the original 0.55');
+  assert.strictEqual(caught[0].fallMs, 3800);
+  assert.strictEqual(caught[0].speed, 430);
+  assert.strictEqual(caught[0].rounds, 10);
+  assert.strictEqual(caught[0].bad, 0);
+  assert.strictEqual(caught[0].basket, 0.16);
+  assert.strictEqual(caught[0].gap, 0.55);
+
+  assert.strictEqual(caught[1].fallMs, 3500);
+  assert.strictEqual(caught[1].speed, 445);
+  assert.strictEqual(caught[1].rounds, 11);
+  assert.strictEqual(caught[1].bad, 2);
+
+  assert.strictEqual(caught[2].fallMs, 3200);
+  assert.strictEqual(caught[2].speed, 460);
+  assert.strictEqual(caught[2].rounds, 12);
+  assert.strictEqual(caught[2].bad, 3);
+
+  assert.strictEqual(caught[3].fallMs, 2700);
+  assert.strictEqual(caught[3].speed, 500);
+  assert.strictEqual(caught[3].rounds, 14);
+  assert.strictEqual(caught[3].bad, 5);
+
+  assert.strictEqual(caught[4].fallMs, 2450);
+  assert.strictEqual(caught[4].speed, 520);
+  assert.strictEqual(caught[4].rounds, 16);
+  assert.strictEqual(caught[4].bad, 6);
+
+  assert.strictEqual(caught[5].fallMs, 2200);
+  assert.strictEqual(caught[5].speed, 540);
+  assert.strictEqual(caught[5].bad, 7);
+  assert.strictEqual(caught[5].rounds, 18);
+  assert.strictEqual(caught[5].basket, 0.16);
+  assert.strictEqual(caught[5].gap, 0.55);
+
+  for (let i = 1; i < caught.length; i++) {
+    assert.ok(caught[i].fallMs < caught[i - 1].fallMs, 'catch fall speeds up');
+    assert.ok(caught[i].speed > caught[i - 1].speed, 'catch basket speeds up');
+    assert.ok(caught[i].rounds > caught[i - 1].rounds, 'catch adds drops');
+    assert.ok(caught[i].bad >= caught[i - 1].bad, 'catch rocks do not drop off');
+    assert.strictEqual(caught[i].basket, 0.16);
+    assert.strictEqual(caught[i].gap, 0.55);
   }
-  assert.strictEqual(Levels.CATCH_BASKET_DEFAULT, 0.24);
-  assert.ok(Levels.CATCH_SPAWN_GAP_DEFAULT > 0.55);
+  assert.strictEqual(Levels.CATCH_BASKET_DEFAULT, 0.16);
+  assert.strictEqual(Levels.CATCH_SPAWN_GAP_DEFAULT, 0.55);
 
   const drag = Levels.getZone('drag').levels;
   // Original drag 1: slack 58, clock 45000. Original drag 4: slack 30,

@@ -50,11 +50,13 @@ Arcade (mouse and keyboard skills)
 ----------------------------------
 
 Arcade is five zones of six levels each, training mouse aim, drag
-and drop, and keyboard speed. Each game starts slow, and the last
-level is a long one that stays slower than the old finale. The first
-time a child opens a zone, a how-to card shows the controls and the
-goal; Let's go, Enter, or Space starts the round. Every level gives
-a score, so a class can compete.
+and drop, and keyboard speed. Pop, Drag, Zap, and Combo start slow,
+and their last level is a long one that stays slower than the old
+finale. Catch keeps the original fall speed and basket, with a
+slightly longer last round. The first time a child opens a zone, a
+how-to card shows the controls and the goal; Let's go, Enter, or
+Space starts the round. Every level gives a score, so a class can
+compete.
 
 - Levels and zones unlock in order, same as the other games. Pop
   level 1 is open. A locked level or zone asks for the teacher
