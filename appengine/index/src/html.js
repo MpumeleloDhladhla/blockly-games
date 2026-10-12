@@ -72,7 +72,9 @@ Index.html.start = function(ij) {
       ${BlocklyGames.getMsg('Index.startOver', true)}
       <button class="secondary" id="clearData">${BlocklyGames.getMsg('Index.clearData', true)}</button>
     </p>
-    <p class="thinka-foot-meta">Thinka.org.za · Code. Build. Innovate.</p>
+    <p class="thinka-foot-meta">Thinka.org.za · Code. Build. Innovate.
+      <a class="thinka-teacher-link" href="teacher.html">⚙ Teacher</a>
+    </p>
   </footer>
 </div>
 `;

@@ -4,7 +4,7 @@ Thinka’s classroom fork of [Google Blockly Games](https://github.com/google/bl
 
 This product is **offline-first**. After a build, the games run from a local folder or ZIP. There is no App Engine backend, no gallery, and no runtime network.
 
-The shared teacher password (default `thinka`, set in `appengine/src/thinka.config.js`) unlocks sequential level locks. Progress and unlocks stay in the browser’s `localStorage`.
+The shared teacher password (built-in default `thinka`) unlocks sequential level locks. A teacher can change or remove it from the **Teacher** link on the hub (`appengine/teacher.html`). That choice is stored in this browser’s `localStorage` on this computer. With the password removed, locked levels open with no password prompt.
 
 The UI uses the **Thinka.org.za** visual system: green-black surfaces (`#030A03`), orange glow CTAs (`#FF4500`), and playful tile accents. The hub is **static HTML** (`appengine/index.html` + `index/hub.js`) so it looks right without `make games`. In-game Blockly workspaces stay light. Tokens live in `appengine/common/thinka-theme.css`. Fredoka and Nunito are bundled under `appengine/common/fonts/` (no CDN). Rebuild with `make games` after changing a **game** template (`appengine/{maze,bird,...}/src/*.js`).
 
@@ -120,7 +120,7 @@ You can also open `appengine/index.html` the same way after `make games` (debug/
 
 1. Unplug ethernet / enable airplane mode (or DevTools → Network → Offline).
 2. Open the launcher or `index.html`.
-3. Play Maze (and any other game): run a level, confirm the next level unlocks, confirm a locked level asks for the teacher password (`thinka`).
+3. Play Maze (and any other game): run a level, confirm the next level unlocks, confirm a locked level asks for the teacher password (built-in default `thinka`, unless a teacher changed it on this computer).
 4. Reload; progress and the unlock should still be there.
 5. Use **Clear data** on the index page (when served from one origin) to reset progress and unlocks.
 
@@ -138,7 +138,15 @@ What stays: gameplay, sequential locks, teacher password, local progress, langua
 
 ## Teacher password
 
-Edit `ThinkaConfig.TEACHER_PASSWORD` in `appengine/src/thinka.config.js`, then `make games`. One password unlocks any locked level. This is a classroom soft gate, not authentication.
+Open the games hub and use the small **Teacher** link in the footer (not a game tile). That page is `teacher.html`.
+
+- **Fresh browser:** the password is the built-in one, `thinka` (`ThinkaConfig.TEACHER_PASSWORD` in `appengine/src/thinka.config.js`). You do not need to edit that file or rebuild to change it for one computer.
+- **Change it:** enter the current password, then type the new one twice. It is saved as a salted SHA-256 hash in `localStorage` (`thinkaTeacherPassword`). The page uses `crypto.subtle` when the browser provides it, including under `file://` when that API is there, and a small JavaScript SHA-256 otherwise. The password text is not stored.
+- **Remove it:** enter the current password, then **Remove password**. The page stores an explicit `off` flag. Locked levels and locked Maze topics then open straight away — the password dialog does not appear. In Reboot, Part 2 is offered from the title screen as well. Arcade has no level locks (every level is already open). Race is a live class race and does not use this password.
+- **Turn it back on:** with the password off, the settings page opens directly. Set a new password there.
+- **This computer only:** the note on the page says the setting applies to this browser on this computer. Serve the folder (or open every game from one site) so they share `localStorage`. Chrome keeps a separate store for each `file://` URL.
+- **Reset progress:** the same page can clear student solutions, stars, scores, and unlocks on this computer. The password setting stays. The hub **Clear data** button also leaves the password alone.
+- Forgetting a custom password: clear this site’s data for Thinka Games in the browser. The built-in password `thinka` comes back. This is a classroom soft gate, not authentication.
 
 ## License
 

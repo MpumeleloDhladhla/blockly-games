@@ -472,6 +472,20 @@ a {
   font-size: 0.9rem;
 }
 
+a.thinka-teacher-link {
+  margin-left: 0.85em;
+  color: var(--thinka-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+a.thinka-teacher-link:hover,
+a.thinka-teacher-link:focus {
+  color: var(--thinka-orange-hot);
+}
+
 #clearData {
   padding: 8px 18px;
   margin: 5px 10px;

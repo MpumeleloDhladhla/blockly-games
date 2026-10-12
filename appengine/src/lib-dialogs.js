@@ -473,6 +473,11 @@ BlocklyDialogs.abortKeyDown_ = function(e) {
  * @param {function(boolean)} callback Called with true if unlocked.
  */
 BlocklyDialogs['teacherUnlock'] = function(level, origin, callback) {
+  // Password removed: the level opens immediately, with no dialog.
+  if (!ThinkaConfig.isTeacherPasswordOn()) {
+    callback(true);
+    return;
+  }
   const content = BlocklyGames.getElementById('dialogTeacherUnlock');
   const form = BlocklyGames.getElementById('teacherUnlockForm');
   const input = BlocklyGames.getElementById('teacherUnlockPassword');
@@ -516,7 +521,7 @@ BlocklyDialogs['teacherUnlock'] = function(level, origin, callback) {
 
   form.onsubmit = function(e) {
     e.preventDefault();
-    if (ThinkaConfig.checkPassword(input.value)) {
+    if (ThinkaConfig.checkTeacherPassword(input.value)) {
       BlocklyGames.saveTeacherUnlock(BlocklyGames.storageName, level);
       unlocked = true;
       BlocklyDialogs.hideDialog(true);

@@ -29,10 +29,12 @@ function loadThinkaConfig() {
       'utf8');
   vm.createContext(sandbox);
   vm.runInContext(src, sandbox);
-  return sandbox.ThinkaConfig;
+  return sandbox;
 }
 
-const ThinkaConfig = loadThinkaConfig();
+const sandbox = loadThinkaConfig();
+const ThinkaConfig = sandbox.ThinkaConfig;
+const crypto = require('crypto');
 let passed = 0;
 
 function test(name, fn) {
@@ -139,4 +141,224 @@ test('an empty preceding unit does not count as finished', () => {
       false);
 });
 
-console.log('\n' + passed + ' tests passed');
+function nodeSha256(text) {
+  return crypto.createHash('sha256').update(Buffer.from(text, 'utf8')).digest('hex');
+}
+
+test('sha256 matches the platform digest, including non-ascii', () => {
+  for (const sample of ['', 'abc', 'thinka', 'hello', 'pässwörd', 'key 🔑']) {
+    assert.strictEqual(ThinkaConfig.sha256Hex_(sample), nodeSha256(sample), sample);
+  }
+});
+
+function installStorage(initial) {
+  const data = Object.assign({}, initial || {});
+  const storage = {};
+  Object.defineProperty(storage, 'length', {
+    get: function() {
+      return Object.keys(data).length;
+    },
+  });
+  storage.key = function(i) {
+    return Object.keys(data)[i] || null;
+  };
+  storage.getItem = function(k) {
+    return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null;
+  };
+  storage.setItem = function(k, v) {
+    data[k] = String(v);
+  };
+  storage.removeItem = function(k) {
+    delete data[k];
+  };
+  const proxy = new Proxy(storage, {
+    get: function(target, prop) {
+      if (prop === 'length') {
+        return target.length;
+      }
+      if (prop in target) {
+        return target[prop];
+      }
+      return data[prop];
+    },
+    set: function(target, prop, value) {
+      data[prop] = String(value);
+      return true;
+    },
+    deleteProperty: function(target, prop) {
+      delete data[prop];
+      return true;
+    },
+  });
+  sandbox.window = {localStorage: proxy};
+  return data;
+}
+
+test('a fresh browser keeps the built-in password on', () => {
+  installStorage();
+  assert.strictEqual(ThinkaConfig.isTeacherPasswordOn(), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('thinka'), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('  thinka  '), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('nope'), false);
+});
+
+test('a custom password is a salted hash, and the old one stops working', () => {
+  installStorage();
+  let saved = false;
+  ThinkaConfig.setTeacherPassword('  classroom  ', function(ok) {
+    saved = ok;
+  });
+  assert.strictEqual(saved, true);
+  const raw = sandbox.window.localStorage[ThinkaConfig.PASSWORD_STORAGE_KEY];
+  assert.strictEqual(raw.indexOf('classroom'), -1);
+  const parsed = JSON.parse(raw);
+  assert.strictEqual(parsed.v, 1);
+  assert.strictEqual(parsed.hash.length, 64);
+  assert.strictEqual(parsed.hash,
+      ThinkaConfig.sha256Hex_(parsed.salt + '\n' + 'classroom'));
+  assert.strictEqual(ThinkaConfig.isTeacherPasswordOn(), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('classroom'), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('  classroom  '), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('thinka'), false);
+  assert.strictEqual(ThinkaConfig.checkPassword('classroom'), true);
+});
+
+test('an empty password is not saved', () => {
+  installStorage();
+  let saved = true;
+  ThinkaConfig.setTeacherPassword('   ', function(ok) {
+    saved = ok;
+  });
+  assert.strictEqual(saved, false);
+  assert.strictEqual(
+      sandbox.window.localStorage[ThinkaConfig.PASSWORD_STORAGE_KEY], undefined);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('thinka'), true);
+});
+
+test('removing the password turns the lock off, and setting it again works', () => {
+  installStorage();
+  ThinkaConfig.setTeacherPassword('classroom', function() {});
+  assert.strictEqual(ThinkaConfig.removeTeacherPassword(), true);
+  assert.strictEqual(
+      sandbox.window.localStorage[ThinkaConfig.PASSWORD_STORAGE_KEY], 'off');
+  assert.strictEqual(ThinkaConfig.isTeacherPasswordOn(), false);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword(''), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('classroom'), true);
+  let saved = false;
+  ThinkaConfig.setTeacherPassword('again', function(ok) {
+    saved = ok;
+  });
+  assert.strictEqual(saved, true);
+  assert.strictEqual(ThinkaConfig.isTeacherPasswordOn(), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('again'), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('classroom'), false);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('thinka'), false);
+});
+
+test('a broken saved record falls back to the built-in password', () => {
+  installStorage();
+  sandbox.window.localStorage[ThinkaConfig.PASSWORD_STORAGE_KEY] = '{';
+  assert.strictEqual(ThinkaConfig.isTeacherPasswordOn(), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('thinka'), true);
+});
+
+test('resetting student progress keeps the password', () => {
+  installStorage();
+  ThinkaConfig.setTeacherPassword('again', function() {});
+  sandbox.window.localStorage['maze1'] = '<xml/>';
+  sandbox.window.localStorage['maze1_stars'] = '3';
+  sandbox.window.localStorage['arcade_scores'] = '{}';
+  sandbox.window.localStorage['reboot_name'] = 'Asha';
+  assert.strictEqual(ThinkaConfig.clearStudentProgress(), true);
+  assert.strictEqual(sandbox.window.localStorage['maze1'], undefined);
+  assert.strictEqual(sandbox.window.localStorage['maze1_stars'], undefined);
+  assert.strictEqual(sandbox.window.localStorage['arcade_scores'], undefined);
+  assert.strictEqual(sandbox.window.localStorage['reboot_name'], undefined);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('again'), true);
+  assert.notStrictEqual(
+      sandbox.window.localStorage[ThinkaConfig.PASSWORD_STORAGE_KEY], undefined);
+});
+
+test('every password prompt uses the shared helpers', () => {
+  const root = path.join(__dirname, '..');
+  const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+  for (const rel of [
+    'appengine/src/lib-dialogs.js',
+    'appengine/src/lib-games.js',
+    'appengine/keys/src/main.js',
+  ]) {
+    const src = read(rel);
+    assert.match(src, /ThinkaConfig\.isTeacherPasswordOn\(\)/, rel);
+    assert.match(src, /ThinkaConfig\.checkTeacherPassword\(/, rel);
+    assert.doesNotMatch(src, /ThinkaConfig\.checkPassword\(/, rel);
+  }
+  const maze = read('appengine/maze/src/select.js');
+  assert.match(maze, /ThinkaConfig\.isTeacherPasswordOn\(\)/);
+  const arcade = read('appengine/arcade/src/main.js');
+  assert.match(arcade, /SKIP_LEVEL_LOCKS = true/);
+  assert.match(arcade, /isTeacherPasswordOn/);
+  const games = read('appengine/src/lib-games.js');
+  const playable = games.match(
+      /BlocklyGames\.isLevelPlayable = function\(name, level\) \{([\s\S]*?)\n\};/);
+  assert.ok(playable, 'isLevelPlayable missing');
+  assert.match(playable[1], /isTeacherPasswordOn\(\)/);
+});
+
+test('the hub links to teacher settings, and the page is offline', () => {
+  const root = path.join(__dirname, '..');
+  const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+  const index = read('appengine/index.html');
+  assert.match(index, /class="thinka-teacher-link"/);
+  assert.match(index, /href="teacher\.html"/);
+  assert.doesNotMatch(index, /thinka-card--teacher/);
+  const page = read('appengine/teacher.html');
+  assert.match(page, /id="teacherPasswordStatus"/);
+  assert.match(page, /Password is ON/);
+  assert.match(page, /id="removePassword"/);
+  assert.match(page, /id="resetProgress"/);
+  assert.match(page, /class="danger"/);
+  assert.match(page, /src\/thinka\.config\.js/);
+  assert.match(page, /this browser on this computer/);
+  assert.doesNotMatch(page, /https?:\/\//);
+  assert.match(read('Makefile'), /cp appengine\/src\/thinka\.config\.js offline\/blockly-games\/src\/thinka\.config\.js/);
+  const config = read('appengine/src/thinka.config.js');
+  assert.match(config, /parsed\['v'\]/);
+  assert.match(config, /parsed\['salt'\]/);
+  assert.match(config, /parsed\['hash'\]/);
+  const reboot = read('appengine/reboot.html');
+  assert.match(reboot, /thinkaTeacherPassword/);
+  assert.match(reboot, /=== 'off'/);
+  assert.match(reboot, /teacherPasswordRemoved\(\)/);
+});
+
+function finish() {
+  console.log('\n' + passed + ' tests passed');
+}
+
+(async function subtleAgrees() {
+  installStorage();
+  sandbox.window.crypto = crypto.webcrypto;
+  const material = 'salt\nclassroom';
+  const fromSubtle = await new Promise(function(resolve) {
+    ThinkaConfig.hashSha256_(material, resolve);
+  });
+  assert.strictEqual(fromSubtle, nodeSha256(material));
+  let saved = false;
+  await new Promise(function(resolve) {
+    ThinkaConfig.setTeacherPassword('classroom', function(ok) {
+      saved = ok;
+      resolve();
+    });
+  });
+  assert.strictEqual(saved, true);
+  const raw = sandbox.window.localStorage[ThinkaConfig.PASSWORD_STORAGE_KEY];
+  assert.strictEqual(raw.indexOf('classroom'), -1);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('classroom'), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('thinka'), false);
+  passed++;
+  console.log('ok  SubtleCrypto SHA-256 matches the JS hash used by games');
+  finish();
+})().catch(function(err) {
+  console.error(err);
+  process.exit(1);
+});

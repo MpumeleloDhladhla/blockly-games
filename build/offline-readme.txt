@@ -24,8 +24,21 @@ How to play
    gauges and “Clear data” may not see progress from maze.html etc.
    A local static server avoids that.
 
-3. Teacher password (default: thinka) unlocks a locked level. Progress
-   and unlocks are stored in that browser’s localStorage only.
+3. Teacher password. A fresh browser uses the built-in password: thinka.
+   On the games page, the small "Teacher" link in the footer opens
+   teacher settings. There a teacher can set a new password (type it
+   twice) or remove it. Changing or removing asks for the current
+   password when one is on. With the password removed, a locked level
+   opens straight away — no password box.
+
+   The choice is saved in this browser on this computer only (a salted
+   hash, or an "off" flag — never the password text). Serve the folder
+   so every game shares it. Opening each HTML file with file:// can
+   keep a separate store per file in Chrome.
+
+   The same page can reset all student progress on this computer.
+   That does not change the password. Progress and unlocks otherwise
+   stay in that browser’s localStorage only.
 
 Arcade (mouse and keyboard skills)
 ----------------------------------

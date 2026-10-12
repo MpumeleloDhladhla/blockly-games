@@ -121,6 +121,9 @@ offline: clean-offline
 	rm -rf offline/blockly-games/gallery*
 	rm -rf offline/blockly-games/generated/
 	rm -rf offline/blockly-games/{./,*,*/*}/src
+	# teacher.html loads this helper directly. Game bundles also compile it in.
+	mkdir -p offline/blockly-games/src
+	cp appengine/src/thinka.config.js offline/blockly-games/src/thinka.config.js
 	rm -f offline/blockly-games/{./,*,*/*}/generated/uncompressed.js
 	rm -f offline/blockly-games/index/title.png
 	rm -f offline/blockly-games/index/title-beta.png

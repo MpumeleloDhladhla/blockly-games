@@ -77,10 +77,10 @@ Arcade.overlaySecondary_ = null;
 function init() {
   // Arcade is the free-play game: every level is open so a class can all
   // compete on the same one.  Skip the shared sequential-lock pass.
-  // Progress and stars still use the shared localStorage keys, and a
-  // teacher unlock (ThinkaConfig.TEACHER_PASSWORD) is preserved if one
-  // was stored.  Two warm-up levels sit in front of the original four,
-  // so older saves are shifted before any screen reads them.
+  // ThinkaConfig.isTeacherPasswordOn() is not consulted here on purpose.
+  // Progress, stars, and any per-level teacher-unlock flags still use the
+  // shared localStorage keys.  Two warm-up levels sit in front of the
+  // original four, so older saves are shifted before any screen reads them.
   BlocklyGames.SKIP_LEVEL_LOCKS = true;
   Arcade.Levels.migrateStorage(storage());
 

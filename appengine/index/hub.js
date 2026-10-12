@@ -342,6 +342,8 @@
     if (!window.confirm('Delete all your solutions?')) {
       return;
     }
+    // Student solutions only. thinkaTeacherPassword (set on teacher.html)
+    // is a different key and must survive this button.
     try {
       for (var i = 0; i < APPS.length; i++) {
         var names = storageNames(APPS[i]);

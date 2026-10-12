@@ -91,6 +91,11 @@ function progress_(stage, unit) {
  * @private
  */
 function isUnlocked_(stage, unit, own) {
+  // No classroom password: every topic opens. A later password brings the
+  // locks back, because this does not write a teacher-unlock flag.
+  if (!ThinkaConfig.isTeacherPasswordOn()) {
+    return true;
+  }
   const before = Maze.Levels.previousUnit(stage, unit.id);
   const previous = before ? progress_(before.stage, before.unit) : null;
   const name = Maze.Levels.storageName(stage, unit.id);

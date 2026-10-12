@@ -678,6 +678,10 @@ function installTeacherUnlock() {
  * @param {function(boolean)} callback Called with true if unlocked.
  */
 function keysTeacherUnlock(level, _origin, callback) {
+  if (!ThinkaConfig.isTeacherPasswordOn()) {
+    callback(true);
+    return;
+  }
   const overlay = BlocklyGames.getElementById('keysOverlay');
   const panel = BlocklyGames.getElementById('keysOverlayPanel');
   const formBox = BlocklyGames.getElementById('dialogTeacherUnlock');
@@ -696,7 +700,7 @@ function keysTeacherUnlock(level, _origin, callback) {
       callback(false);
       return;
     }
-    if (ThinkaConfig.checkPassword(entered)) {
+    if (ThinkaConfig.checkTeacherPassword(entered)) {
       BlocklyGames.saveTeacherUnlock(BlocklyGames.storageName, level);
       callback(true);
     } else {
@@ -752,7 +756,7 @@ function keysTeacherUnlock(level, _origin, callback) {
   error.textContent = '';
   form.onsubmit = function(e) {
     e.preventDefault();
-    if (ThinkaConfig.checkPassword(input.value)) {
+    if (ThinkaConfig.checkTeacherPassword(input.value)) {
       BlocklyGames.saveTeacherUnlock(BlocklyGames.storageName, level);
       finish(true);
       return;

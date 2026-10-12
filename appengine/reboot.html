@@ -1187,6 +1187,16 @@ function partOneFinished(){
   }
   return true;
 }
+/**
+ * True when a teacher has removed the classroom password on this browser.
+ * Reboot is one file, so it reads the same localStorage flag as
+ * ThinkaConfig.PASSWORD_STORAGE_KEY / PASSWORD_REMOVED ("thinkaTeacherPassword"
+ * === "off") instead of loading that script.
+ */
+function teacherPasswordRemoved(){
+  try { return window.localStorage['thinkaTeacherPassword'] === 'off'; }
+  catch (e) { return false; }
+}
 function rememberedEnding(){
   try { return window.localStorage['reboot_ending'] || null; } catch (e) { return null; }
 }
@@ -4167,12 +4177,14 @@ function titleScreen(){
     b.addEventListener('click', () => begin('new'));
     buttons.appendChild(b);
 
-    if (partOneFinished()){
+    if (partOneFinished() || teacherPasswordRemoved()){
       const c = el('button', 'btn big go', 'CONTINUE PART 2 &#9658;');
       c.addEventListener('click', () => begin('continue'));
       buttons.appendChild(c);
       overlay.appendChild(el('p', 'small',
-        'You already finished Part 1 on this computer. Part 2 is the machine downstairs.'));
+        partOneFinished()
+          ? 'You already finished Part 1 on this computer. Part 2 is the machine downstairs.'
+          : 'Part 2 is open on this computer.'));
     }
   });
 }

@@ -1,0 +1,192 @@
+/**
+ * Teacher settings. Uses the Thinka tokens from thinka-theme.css.
+ * The hub link is small; this page is the place teachers actually work.
+ */
+
+body.thinka-teacher {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 90% -10%, rgba(255, 69, 0, 0.28), transparent 36%),
+    var(--thinka-page);
+  color: var(--thinka-text);
+  color-scheme: dark;
+}
+
+.teacher-bar {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  padding: 1em 6% 0.2em;
+}
+
+.teacher-logo {
+  font-family: var(--thinka-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--thinka-text-strong);
+  letter-spacing: -0.04em;
+  text-decoration: none;
+}
+
+.teacher-logo-dot {
+  color: var(--thinka-orange);
+}
+
+.teacher-back {
+  margin-left: auto;
+  color: var(--thinka-muted);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.teacher-back:hover,
+.teacher-back:focus {
+  color: var(--thinka-orange-hot);
+}
+
+.teacher-wrap {
+  width: min(40rem, calc(100% - 2rem));
+  margin: 0.6rem auto 2.5rem;
+}
+
+.teacher-kicker {
+  margin: 0 0 0.2em;
+  color: var(--thinka-orange);
+  font-family: var(--thinka-display);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+}
+
+.teacher-wrap h1 {
+  margin: 0 0 0.35em;
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+  color: var(--thinka-text-strong);
+}
+
+.teacher-lead {
+  margin: 0 0 1em;
+  color: var(--thinka-muted);
+  font-size: 1.05rem;
+  max-width: 38em;
+}
+
+.teacher-status {
+  display: inline-block;
+  margin: 0 0 0.8em;
+  padding: 0.35em 0.85em;
+  border-radius: var(--thinka-radius-pill);
+  font-family: var(--thinka-display);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.teacher-status.is-on {
+  background: var(--thinka-mint);
+  color: var(--thinka-page);
+}
+
+.teacher-status.is-off {
+  background: var(--thinka-yellow);
+  color: var(--thinka-page);
+}
+
+.teacher-note {
+  margin: 0 0 1.1em;
+  padding: 0.75em 0.9em;
+  border-radius: var(--thinka-radius-sm);
+  background: var(--thinka-panel);
+  color: var(--thinka-muted);
+  font-size: 0.95rem;
+}
+
+.teacher-card {
+  background: var(--thinka-surface);
+  border: 1px solid rgba(248, 250, 252, 0.08);
+  border-top: 4px solid var(--thinka-orange);
+  border-radius: var(--thinka-radius);
+  padding: 1.15rem 1.2rem 1.3rem;
+  box-shadow: var(--thinka-shadow);
+}
+
+.teacher-card h2 {
+  margin: 0 0 0.35em;
+  font-family: var(--thinka-display);
+  font-size: 1.25rem;
+  color: var(--thinka-text-strong);
+}
+
+.teacher-card p {
+  margin: 0 0 0.8em;
+  color: var(--thinka-text);
+}
+
+.teacher-card label {
+  display: block;
+  font-weight: 700;
+  margin-top: 0.35em;
+}
+
+.teacher-card input[type="password"] {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0.35em 0 0.75em;
+  padding: 0.7em 0.85em;
+  border-radius: var(--thinka-radius-sm);
+  border: 1px solid rgba(248, 250, 252, 0.16);
+  background: var(--thinka-page);
+  color: var(--thinka-text-strong);
+  font: inherit;
+  font-size: 1.05rem;
+}
+
+.teacher-card input[type="password"]:focus {
+  outline: none;
+  box-shadow: var(--thinka-focus);
+}
+
+.teacher-error {
+  min-height: 1.3em;
+  margin: 0 0 0.4em;
+  color: var(--thinka-error);
+  font-weight: 700;
+}
+
+.teacher-ok {
+  min-height: 1.3em;
+  margin: 0.2em 0 0.6em;
+  color: var(--thinka-mint);
+  font-weight: 700;
+}
+
+.teacher-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+  margin-top: 0.2em;
+}
+
+.thinka-teacher button.danger {
+  background: transparent;
+  color: var(--thinka-error);
+  border: 2px solid var(--thinka-error);
+  box-shadow: none;
+}
+
+.thinka-teacher button.danger:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.16);
+}
+
+.teacher-split {
+  margin-top: 1.2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(248, 250, 252, 0.1);
+}
+
+.teacher-hint {
+  color: var(--thinka-muted);
+  font-size: 0.95rem;
+}

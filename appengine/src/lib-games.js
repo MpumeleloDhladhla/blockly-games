@@ -405,6 +405,11 @@ BlocklyGames.saveTeacherUnlock = function(name, level) {
  * @returns {boolean} True if playable.
  */
 BlocklyGames.isLevelPlayable = function(name, level) {
+  // No classroom password: every level opens. Locks return if a teacher
+  // sets a password again, because nothing was saved as a teacher unlock.
+  if (!ThinkaConfig.isTeacherPasswordOn()) {
+    return true;
+  }
   return ThinkaConfig.isLevelPlayable(
       level,
       function(lvl) {
@@ -555,6 +560,11 @@ BlocklyGames.handleLockedLevelClick_ = function(e) {
  * @private
  */
 BlocklyGames.promptTeacherUnlock_ = function(level, origin, callback) {
+  // Password removed: open the level. Do not show a password box.
+  if (!ThinkaConfig.isTeacherPasswordOn()) {
+    callback(true);
+    return;
+  }
   const dialogs = window['BlocklyDialogs'];
   if (dialogs && typeof dialogs['teacherUnlock'] === 'function' &&
       BlocklyGames.getElementById('dialogTeacherUnlock')) {
@@ -568,7 +578,7 @@ BlocklyGames.promptTeacherUnlock_ = function(level, origin, callback) {
     callback(false);
     return;
   }
-  if (ThinkaConfig.checkPassword(entered)) {
+  if (ThinkaConfig.checkTeacherPassword(entered)) {
     BlocklyGames.saveTeacherUnlock(BlocklyGames.storageName, level);
     callback(true);
   } else {

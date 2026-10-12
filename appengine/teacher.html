@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Set or remove the Thinka classroom password on this computer.">
+  <title>Teacher settings — Thinka Games</title>
+  <link rel="stylesheet" href="common/common.css">
+  <link rel="stylesheet" href="teacher.css">
+</head>
+<body class="thinka-teacher">
+  <header class="teacher-bar">
+    <a class="teacher-logo" href="index.html">thinka<span class="teacher-logo-dot">.</span></a>
+    <a class="teacher-back" href="index.html">Back to games</a>
+  </header>
+
+  <main class="teacher-wrap">
+    <p class="teacher-kicker">For teachers</p>
+    <h1>Classroom password</h1>
+    <p class="teacher-lead">This password opens a locked level in any game. Students do not need an account.</p>
+    <p id="teacherPasswordStatus" class="teacher-status is-on" role="status">Password is ON</p>
+    <p id="teacherPasswordDetail" class="teacher-hint"></p>
+    <p class="teacher-note" id="teacherScopeNote">This setting applies to this browser on this computer. It is saved here only, not on a server. Open the games from one address so they all see it. In Chrome, each file opened with file:// keeps its own store.</p>
+
+    <section class="teacher-card" id="teacherGate">
+      <h2>Enter the current password</h2>
+      <p>A password is on. Type it to change or remove it.</p>
+      <form id="gateForm" autocomplete="off">
+        <label for="currentPassword">Current password</label>
+        <input type="password" id="currentPassword" autocomplete="current-password" spellcheck="false">
+        <p id="gateError" class="teacher-error" role="alert"></p>
+        <div class="teacher-actions">
+          <button type="submit" class="primary" id="gateContinue">Continue</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="teacher-card" id="teacherSettings" hidden>
+      <h2 id="setHeading">Set a password</h2>
+      <p id="setCopy">Type the new password twice.</p>
+      <form id="setForm" autocomplete="off">
+        <label for="newPassword">New password</label>
+        <input type="password" id="newPassword" autocomplete="new-password" spellcheck="false">
+        <label for="confirmPassword">Type it again</label>
+        <input type="password" id="confirmPassword" autocomplete="new-password" spellcheck="false">
+        <p id="setError" class="teacher-error" role="alert"></p>
+        <div class="teacher-actions">
+          <button type="submit" class="primary" id="savePassword">Save password</button>
+        </div>
+      </form>
+      <p id="setNote" class="teacher-ok" role="status"></p>
+
+      <div class="teacher-actions">
+        <button type="button" class="secondary" id="removePassword">Remove password</button>
+      </div>
+      <p class="teacher-hint" id="removeHint">With no password, a locked level opens straight away. There is no password box.</p>
+
+      <div class="teacher-split">
+        <h2>Student progress</h2>
+        <p class="teacher-hint">Clears solutions, stars, scores, and level unlocks stored in this browser. The password setting stays.</p>
+        <div class="teacher-actions">
+          <button type="button" class="danger" id="resetProgress">Reset all student progress on this computer</button>
+        </div>
+        <p id="resetNote" class="teacher-ok" role="status"></p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    var goog = window.goog || {};
+    goog.provide = goog.provide || function(name) {
+      var obj = window;
+      var parts = name.split('.');
+      var i;
+      for (i = 0; i < parts.length; i++) {
+        obj[parts[i]] = obj[parts[i]] || {};
+        obj = obj[parts[i]];
+      }
+    };
+    goog.require = goog.require || function() {};
+  </script>
+  <script src="src/thinka.config.js"></script>
+  <script src="teacher.js"></script>
+</body>
+</html>
