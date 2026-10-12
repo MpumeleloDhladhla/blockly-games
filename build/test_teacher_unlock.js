@@ -235,6 +235,28 @@ test('an empty password is not saved', () => {
   assert.strictEqual(ThinkaConfig.checkTeacherPassword('thinka'), true);
 });
 
+test('reset to default restores thinka after a custom password', () => {
+  installStorage();
+  ThinkaConfig.setTeacherPassword('classroom', function() {});
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('classroom'), true);
+  assert.strictEqual(ThinkaConfig.resetTeacherPassword(), true);
+  assert.strictEqual(
+      sandbox.window.localStorage[ThinkaConfig.PASSWORD_STORAGE_KEY], undefined);
+  assert.strictEqual(ThinkaConfig.isTeacherPasswordOn(), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('thinka'), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('classroom'), false);
+});
+
+test('reset to default restores thinka after the password was removed', () => {
+  installStorage();
+  assert.strictEqual(ThinkaConfig.removeTeacherPassword(), true);
+  assert.strictEqual(ThinkaConfig.isTeacherPasswordOn(), false);
+  assert.strictEqual(ThinkaConfig.resetTeacherPassword(), true);
+  assert.strictEqual(ThinkaConfig.isTeacherPasswordOn(), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword('thinka'), true);
+  assert.strictEqual(ThinkaConfig.checkTeacherPassword(''), false);
+});
+
 test('removing the password turns the lock off, and setting it again works', () => {
   installStorage();
   ThinkaConfig.setTeacherPassword('classroom', function() {});

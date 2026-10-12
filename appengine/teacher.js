@@ -103,6 +103,25 @@
     });
   });
 
+  document.getElementById('resetDefault').addEventListener('click', function() {
+    var ok = window.confirm(
+        'Reset the teacher password on this computer to thinka?');
+    if (!ok) {
+      return;
+    }
+    var note = document.getElementById('setNote');
+    var error = document.getElementById('setError');
+    if (!ThinkaConfig.resetTeacherPassword()) {
+      error.textContent = 'Could not reset the password in this browser.';
+      return;
+    }
+    error.textContent = '';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('confirmPassword').value = '';
+    note.textContent = 'Reset. The teacher password on this computer is thinka again.';
+    paint();
+  });
+
   removeButton.addEventListener('click', function() {
     var ok = window.confirm(
         'Remove the classroom password? Locked levels will open with no password.');

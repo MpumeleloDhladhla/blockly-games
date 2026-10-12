@@ -142,11 +142,12 @@ Open the games hub and use the small **Teacher** link in the footer (not a game 
 
 - **Fresh browser:** the password is the built-in one, `thinka` (`ThinkaConfig.TEACHER_PASSWORD` in `appengine/src/thinka.config.js`). You do not need to edit that file or rebuild to change it for one computer.
 - **Change it:** enter the current password, then type the new one twice. It is saved as a salted SHA-256 hash in `localStorage` (`thinkaTeacherPassword`). The page uses `crypto.subtle` when the browser provides it, including under `file://` when that API is there, and a small JavaScript SHA-256 otherwise. The password text is not stored.
+- **Reset to default:** enter the current password, then **Reset to default (thinka)**. That clears the saved choice. The built-in password `thinka` works again, and locked levels ask for it.
 - **Remove it:** enter the current password, then **Remove password**. The page stores an explicit `off` flag. Locked levels and locked Maze topics then open straight away — the password dialog does not appear. In Reboot, Part 2 is offered from the title screen as well. Arcade has no level locks (every level is already open). Race is a live class race and does not use this password.
 - **Turn it back on:** with the password off, the settings page opens directly. Set a new password there.
 - **This computer only:** the note on the page says the setting applies to this browser on this computer. Serve the folder (or open every game from one site) so they share `localStorage`. Chrome keeps a separate store for each `file://` URL.
 - **Reset progress:** the same page can clear student solutions, stars, scores, and unlocks on this computer. The password setting stays. The hub **Clear data** button also leaves the password alone.
-- Forgetting a custom password: clear this site’s data for Thinka Games in the browser. The built-in password `thinka` comes back. This is a classroom soft gate, not authentication.
+- Forgetting a custom password: use **Reset to default (thinka)** on that page, or clear this site’s data for Thinka Games in the browser. The built-in password `thinka` comes back. This is a classroom soft gate, not authentication.
 
 ## License
 

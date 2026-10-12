@@ -27,9 +27,10 @@ How to play
 3. Teacher password. A fresh browser uses the built-in password: thinka.
    On the games page, the small "Teacher" link in the footer opens
    teacher settings. There a teacher can set a new password (type it
-   twice) or remove it. Changing or removing asks for the current
-   password when one is on. With the password removed, a locked level
-   opens straight away — no password box.
+   twice), reset back to thinka, or remove the password. Changing,
+   resetting, or removing asks for the current password when one is on.
+   Reset puts the built-in password thinka back. With the password
+   removed, a locked level opens straight away — no password box.
 
    The choice is saved in this browser on this computer only (a salted
    hash, or an "off" flag — never the password text). Serve the folder

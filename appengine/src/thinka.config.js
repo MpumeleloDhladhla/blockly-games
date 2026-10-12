@@ -480,6 +480,30 @@ ThinkaConfig.removeTeacherPassword = function() {
 };
 
 /**
+ * Forget a custom password or an "off" flag so the built-in default
+ * (`thinka`) is the classroom password again. Locks stay on.
+ * @returns {boolean} True if the default password is in effect.
+ */
+ThinkaConfig.resetTeacherPassword = function() {
+  var storage = ThinkaConfig.storage_();
+  if (!storage) {
+    return false;
+  }
+  try {
+    if (typeof storage.removeItem === 'function') {
+      storage.removeItem(ThinkaConfig.PASSWORD_STORAGE_KEY);
+    } else {
+      delete storage[ThinkaConfig.PASSWORD_STORAGE_KEY];
+    }
+  } catch (e) {
+    return false;
+  }
+  return ThinkaConfig.storageGet_(ThinkaConfig.PASSWORD_STORAGE_KEY) ===
+      undefined &&
+      ThinkaConfig.checkTeacherPassword(ThinkaConfig.TEACHER_PASSWORD);
+};
+
+/**
  * Delete student progress stored on this browser. Keeps the password setting.
  * @returns {boolean} True if storage could be updated.
  */
