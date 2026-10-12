@@ -143,4 +143,135 @@ test('the player can always get back to the hub', () => {
   assert.match(script, /menu\.href = 'index\.html'/);
 });
 
+function loadMusicPure() {
+  const start = script.indexOf('/* REBOOT_MUSIC_PURE_START */');
+  const end = script.indexOf('/* REBOOT_MUSIC_PURE_END */');
+  assert.ok(start > 0 && end > start, 'music theory block missing');
+  const pure = script.slice(start, end);
+  return new Function('window', pure + '\nreturn { musicWanted, saveMusicWanted, rebootSection, rebootLayer, rebootDegree, rebootChord, rebootPhrase, rebootArpMidi, rebootBassMidi, rebootBassSteps, rebootDrive, rebootRiser };')({ localStorage: Object.create(null) });
+}
+
+test('the score module parses inside the one game file', () => {
+  // Reboot stays a single offline file: the score is plain JS, not a fetch.
+  assert.strictEqual((html.match(/<script/g) || []).length, 1);
+  assert.doesNotMatch(html, /\.(mp3|ogg|wav|m4a)/i);
+  assert.doesNotMatch(script, /new Audio\(/);
+  new Function(script);
+  assert.match(script, /function buildMusicGraph/);
+  assert.match(script, /createDynamicsCompressor/);
+  assert.match(script, /createDelay/);
+  assert.match(script, /createConvolver/);
+  assert.match(script, /window\.RebootMusic/);
+});
+
+test('the music toggle is visible and the choice sticks', () => {
+  assert.match(html, /id="musicToggle"/);
+  assert.match(html, /aria-pressed="true"/);
+  assert.match(html, /z-index:\s*90/);
+  assert.match(html, /MUSIC ON/);
+  assert.match(script, /MUSIC OFF/);
+  assert.match(script, /reboot_music/);
+  assert.match(script, /visibilitychange/);
+  assert.match(script, /pagehide/);
+  assert.match(script, /pointerdown/);
+  assert.match(script, /function leaveGame/);
+
+  const store = Object.create(null);
+  const api = new Function('window', script.slice(
+    script.indexOf('/* REBOOT_MUSIC_PURE_START */'),
+    script.indexOf('/* REBOOT_MUSIC_PURE_END */')
+  ) + '\nreturn { musicWanted, saveMusicWanted };')({ localStorage: store });
+
+  assert.strictEqual(api.musicWanted(), true, 'music defaults on');
+  api.saveMusicWanted(false);
+  assert.strictEqual(store.reboot_music, 'off');
+  assert.strictEqual(api.musicWanted(), false);
+  api.saveMusicWanted(true);
+  assert.strictEqual(store.reboot_music, 'on');
+  assert.strictEqual(api.musicWanted(), true);
+
+  const blocked = {};
+  Object.defineProperty(blocked, 'reboot_music', {
+    get(){ throw new Error('storage blocked'); },
+    set(){ throw new Error('storage blocked'); }
+  });
+  const safe = new Function('window', script.slice(
+    script.indexOf('function musicWanted()'),
+    script.indexOf('function saveMusicWanted(on)')
+  ) + script.slice(
+    script.indexOf('function saveMusicWanted(on)'),
+    script.indexOf('/** intro (4)')
+  ) + '\nreturn { musicWanted, saveMusicWanted };')({ localStorage: blocked });
+  assert.strictEqual(safe.musicWanted(), true);
+  safe.saveMusicWanted(false);
+
+  const hub = fs.readFileSync(path.join(ROOT, 'appengine', 'index', 'hub.js'), 'utf8');
+  assert.ok(/REBOOT_EXTRA_KEYS = \[[^\]]*'reboot_music'/.test(hub),
+      'hub.js: clear data must remove reboot_music');
+});
+
+test('the arrangement stays in D minor and does not repeat one loop', () => {
+  const api = loadMusicPure();
+  const minor = new Set([0, 2, 4, 5, 7, 9, 10]);
+  const roots = { i: 2, VI: 10, III: 5, VII: 0 };
+  const degrees = [];
+  for (let bar = 0; bar < 8; bar++) degrees.push(api.rebootDegree(bar));
+  assert.deepStrictEqual(degrees, ['i', 'i', 'VI', 'VI', 'III', 'III', 'VII', 'VII']);
+
+  assert.strictEqual(api.rebootSection(0), 'intro');
+  assert.strictEqual(api.rebootSection(3), 'intro');
+  assert.strictEqual(api.rebootSection(4), 'a');
+  assert.strictEqual(api.rebootSection(11), 'a');
+  assert.strictEqual(api.rebootSection(12), 'b');
+  assert.strictEqual(api.rebootSection(19), 'b');
+  assert.strictEqual(api.rebootSection(20), 'breakdown');
+  assert.strictEqual(api.rebootSection(23), 'breakdown');
+  assert.strictEqual(api.rebootSection(24), 'a');
+  assert.strictEqual(api.rebootLayer(12, 'task'), 'b');
+  assert.strictEqual(api.rebootLayer(12, 'story'), 'a');
+  assert.strictEqual(api.rebootLayer(12, 'title'), 'a');
+  assert.strictEqual(api.rebootLayer(12, 'break'), 'breakdown');
+  assert.strictEqual(api.rebootRiser(3), true);
+  assert.strictEqual(api.rebootRiser(11), true);
+  assert.strictEqual(api.rebootRiser(23), true);
+  assert.strictEqual(api.rebootRiser(4), false);
+  assert.ok(api.rebootDrive(10) > api.rebootDrive(1));
+
+  for (let bar = 0; bar < 16; bar++) {
+    for (let variation = 0; variation < 3; variation++) {
+      const chord = api.rebootChord(bar, variation);
+      assert.strictEqual(chord[0] % 12, roots[api.rebootDegree(bar)]);
+      chord.forEach(midi => assert.ok(minor.has(((midi % 12) + 12) % 12)));
+      for (const shape of ['up', 'down', 'updown']) {
+        for (let step = 0; step < 12; step++) {
+          const note = api.rebootArpMidi(step, chord, shape);
+          assert.ok(note >= 62 && note <= 81, 'arp out of range ' + note);
+          assert.ok(minor.has(note % 12));
+        }
+      }
+      const bass = api.rebootBassMidi(chord, bar % 2 === 0 ? 0 : 7);
+      assert.ok(bass >= 46 && bass <= 67);
+    }
+  }
+
+  const introHits = api.rebootBassSteps('intro', 0).reduce((s, n) => s + n, 0);
+  const bHits = api.rebootBassSteps('b', 0).reduce((s, n) => s + n, 0);
+  assert.ok(bHits > introHits, 'the B section bass should move more than the intro');
+
+  const phraseA = api.rebootPhrase(1, api.rebootChord(0, 0));
+  const phraseB = api.rebootPhrase(99, api.rebootChord(0, 0));
+  assert.ok(phraseA.length >= 3);
+  assert.notDeepStrictEqual(phraseA, phraseB);
+  assert.deepStrictEqual(phraseA, api.rebootPhrase(1, api.rebootChord(0, 0)));
+  const chord = api.rebootChord(0, 0);
+  assert.ok(chord.some(m => (m % 12) === (phraseA[0].midi % 12)), 'phrase should start on a chord tone');
+  let prev = null;
+  phraseA.forEach(n => {
+    assert.ok(n.midi >= 62 && n.midi <= 81);
+    assert.ok(minor.has(n.midi % 12), 'melody pitch class ' + (n.midi % 12));
+    if (prev != null) assert.ok(Math.abs(n.midi - prev) <= 5, 'leap ' + prev + ' to ' + n.midi);
+    prev = n.midi;
+  });
+});
+
 console.log('\n' + passed + ' tests passed');

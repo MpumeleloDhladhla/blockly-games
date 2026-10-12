@@ -17,6 +17,10 @@
 
   Everything (markup, styles, logic, audio) lives in this file. No network access
   required, safe to embed in an iframe / webview.
+
+  Background score: a procedural polyphonic sci-fi theme (pad, bass, arp,
+  lead, soft kick and hat, delay and reverb) played with the Web Audio API.
+  No audio files. The MUSIC button remembers its choice in localStorage.
 -->
 <style>
 /* ============================================================== *
@@ -100,7 +104,7 @@ html, body{
   100% { transform: translate(0,0); }
 }
 #crt.degraded #scanlines{ opacity: 1; filter: contrast(1.3); }
-#crt.no-mouse, #crt.no-mouse *{ cursor: none !important; }
+#crt.no-mouse, #crt.no-mouse *:not(#musicToggle){ cursor: none !important; }
 
 /* ============================================================== *
  *  2. HUD (top bar)
@@ -275,6 +279,42 @@ kbd.hot{ border-color: var(--amber); color: var(--amber); background: rgba(255,1
 }
 #lives{ color: var(--red); letter-spacing: 0.12em; white-space: nowrap; }
 #lives .spent{ color: var(--green-dim); }
+
+/* Music toggle sits above the title overlay so it is visible before START. */
+#hud{ padding-right: 12rem; }
+#musicToggle{
+  position: absolute;
+  top: 0.45rem;
+  right: 0.55rem;
+  z-index: 90;
+  font-family: var(--font);
+  font-size: 0.78em;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  color: #041404;
+  background: var(--green);
+  border: 2px solid var(--amber);
+  padding: 0.28rem 0.65rem;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(51, 255, 51, 0.45);
+}
+#musicToggle[aria-pressed="true"]{ animation: musicpulse 2.6s ease-in-out infinite; }
+@keyframes musicpulse{
+  0%, 100%{ box-shadow: 0 0 8px rgba(51,255,51,0.4); }
+  50%{ box-shadow: 0 0 16px rgba(255,176,0,0.65); }
+}
+#musicToggle[aria-pressed="false"]{
+  color: var(--green);
+  background: rgba(4, 10, 4, 0.92);
+  border-color: var(--green-dim);
+  box-shadow: none;
+  animation: none;
+}
+#musicToggle:hover{ filter: brightness(1.12); }
+#musicToggle:focus-visible{ outline: 2px solid var(--amber); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce){
+  #musicToggle{ animation: none; }
+}
 #exitLink{
   margin-left: auto;
   padding: 0.05rem 0.5rem;
@@ -836,6 +876,7 @@ table.stats td.v{ color: var(--amber); text-align: right; }
   html, body{ font-size: clamp(12px, 0.6vw + 0.95vh, 17px); }
   #crt{ padding: 0.45rem; gap: 0.35rem; }
   #hud, #foot{ padding: 0.2rem 0.5rem; }
+  #hud{ padding-right: 11.5rem; }
   #face{ padding: 0.3rem; font-size: 1em; }
   #taskbar{ padding: 0.25rem 0.5rem; }
   #hint{ padding: 0.25rem 0.5rem; min-height: 1.6rem; }
@@ -870,6 +911,8 @@ table.stats td.v{ color: var(--amber); text-align: right; }
   #body{ flex-direction: column; }
   #side{ width: auto; max-width: none; height: 26%; }
   #hud .hide-sm, #foot .hide-sm{ display: none; }
+  #hud{ padding-right: 9rem; }
+  #musicToggle{ letter-spacing: 0.06em; padding: 0.22rem 0.45rem; }
 }
 </style>
 </head>
@@ -888,6 +931,7 @@ table.stats td.v{ color: var(--amber); text-align: right; }
     <span class="label">HEALTH</span>
     <div class="meter" id="integrityMeter"><i id="integrityFill"></i></div>
     <span id="lives" hidden></span>
+    <button type="button" id="musicToggle" aria-pressed="true" aria-label="Music is on. Click to turn the music off.">&#9835; MUSIC ON</button>
   </header>
 
   <!-- ---------------- MAIN ---------------- -->
@@ -966,11 +1010,13 @@ const hintBar  = $('#hint');
 const overlay  = $('#overlay');
 
 /* ================================================================
- * 1. AUDIO — every sound is synthesised with the Web Audio API.
+ * 1. AUDIO — effects and the background score are synthesised with
+ *    the Web Audio API. Nothing is fetched.
  * ============================================================== */
 const Sfx = {
   ctx: null,
   master: null,
+  limiter: null,
 
   /** Lazily create the AudioContext (browsers require a user gesture). */
   init(){
@@ -978,9 +1024,18 @@ const Sfx = {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     this.ctx = new AC();
+    // Soft ceiling shared by effects and music, so the mix stays gentle.
+    this.limiter = this.ctx.createDynamicsCompressor();
+    this.limiter.threshold.value = -16;
+    this.limiter.knee.value = 12;
+    this.limiter.ratio.value = 12;
+    this.limiter.attack.value = 0.004;
+    this.limiter.release.value = 0.22;
+    this.limiter.connect(this.ctx.destination);
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.5;
-    this.master.connect(this.ctx.destination);
+    this.master.gain.value = 0.45;
+    this.master.connect(this.limiter);
+    Music.attach(this.ctx, this.limiter);
   },
 
   /** One shaped oscillator blip. */
@@ -1031,6 +1086,795 @@ const Sfx = {
   crash() { this.noise(0.7, 0.13, 320, 'lowpass'); this.tone(120, 0.7, 'sawtooth', 0.06, 40); },
   pop()   { this.tone(1760, 0.04, 'square', 0.04, 880); }
 };
+
+
+/* ================================================================
+ * 1b. BACKGROUND SCORE
+ *     Polyphonic sci-fi theme in D natural minor.
+ *     Harmony: i – VI – III – VII (Dm Bb F C), one chord every two bars,
+ *     with 7th/9th voicings that change each time the form repeats.
+ *     Form: 4-bar intro, 8-bar A, 8-bar B, 4-bar breakdown, then A–B–break
+ *     again with a new variation (arp shape, bass pattern, melody seed).
+ *     Layers: evolving pad, pulsing bass, arpeggio, lead phrase,
+ *     soft kick and hat, dotted-eighth delay, short reverb.
+ *     Tempo 96. Kid-friendly levels, shared limiter with the effects.
+ *     The title and the story keep the calmer layers; tasks open the
+ *     full arrangement, and later acts push it a little harder.
+ * ============================================================== */
+
+/* REBOOT_MUSIC_PURE_START */
+const REBOOT_BPM = 96;
+const REBOOT_SCALE = [0, 2, 3, 5, 7, 8, 10]; // D natural minor, semitones from D
+
+function musicWanted(){
+  try { return window.localStorage['reboot_music'] !== 'off'; }
+  catch (e) { return true; }
+}
+function saveMusicWanted(on){
+  try { window.localStorage['reboot_music'] = on ? 'on' : 'off'; }
+  catch (e) {}
+}
+
+/** intro (4) · A (8) · B (8) · breakdown (4), then A–B–breakdown loop. */
+function rebootSection(bar){
+  const b = bar | 0;
+  if (b < 4) return 'intro';
+  const cycle = (b - 4) % 20;
+  if (cycle < 8) return 'a';
+  if (cycle < 16) return 'b';
+  return 'breakdown';
+}
+
+/** Which layers the moment in the story is allowed to use. */
+function rebootLayer(bar, scene){
+  const s = rebootSection(bar);
+  if (scene === 'break' || scene === 'fail') return 'breakdown';
+  if (scene === 'title' || scene === 'card' || scene === 'story'){
+    return s === 'b' ? 'a' : s;
+  }
+  if (scene === 'finale'){
+    if (s === 'intro') return 'a';
+    if (s === 'breakdown') return 'b';
+    return s;
+  }
+  return s;
+}
+
+function rebootDegree(bar){
+  return ['i', 'VI', 'III', 'VII'][Math.floor((bar | 0) / 2) % 4];
+}
+
+const REBOOT_VOICINGS = {
+  i:   [[50, 53, 57, 62], [50, 53, 57, 60, 64], [50, 53, 57, 62, 65]],
+  VI:  [[46, 50, 53, 58], [46, 50, 53, 57, 60], [46, 50, 53, 60]],
+  III: [[53, 57, 60, 65], [41, 53, 57, 60, 64], [53, 57, 60, 67]],
+  VII: [[48, 52, 55, 60], [48, 52, 55, 62], [36, 48, 55, 60]]
+};
+
+function rebootChord(bar, variation){
+  const name = rebootDegree(bar);
+  const list = REBOOT_VOICINGS[name];
+  const idx = Math.abs((variation | 0) + Math.floor((bar | 0) / 8)) % list.length;
+  return list[idx].slice();
+}
+
+function rebootDegreeMidi(degree){
+  const d = Math.max(0, Math.min(11, degree | 0));
+  return 62 + REBOOT_SCALE[d % 7] + 12 * Math.floor(d / 7);
+}
+
+function rebootPitchClassIn(chord, midi){
+  const pc = ((midi % 12) + 12) % 12;
+  for (let i = 0; i < chord.length; i++){
+    if ((((chord[i] % 12) + 12) % 12) === pc) return true;
+  }
+  return false;
+}
+
+function rebootRng(seed){
+  let a = (seed | 0) || 1;
+  return function(){
+    a |= 0;
+    a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * A short lead phrase. Starts on a chord tone, then moves by a step or two
+ * inside D4–A5 so it stays singable and in the key.
+ */
+function rebootPhrase(seed, chord){
+  const rng = rebootRng(seed || 1);
+  const notes = [];
+  let degree = 4;
+  const candidates = [];
+  for (let d = 0; d <= 11; d++){
+    const midi = rebootDegreeMidi(d);
+    if (chord && chord.length && rebootPitchClassIn(chord, midi)) candidates.push(d);
+  }
+  if (candidates.length) degree = candidates[Math.floor(rng() * candidates.length)];
+  const rhythms = [0.5, 1, 1, 1.5, 2];
+  const steps = [-2, -1, -1, 0, 1, 1, 2];
+  let beat = rng() < 0.35 ? (rng() < 0.5 ? 0.5 : 1) : 0;
+  let first = true;
+  while (beat < 7.5){
+    const dur = first ? 1 : rhythms[Math.floor(rng() * rhythms.length)];
+    if (beat + dur > 8) break;
+    const isRest = !first && rng() < 0.18;
+    if (!isRest){
+      if (!first){
+        degree = Math.max(0, Math.min(11, degree + steps[Math.floor(rng() * steps.length)]));
+      }
+      notes.push({ at: beat, midi: rebootDegreeMidi(degree), dur: Math.max(0.35, dur * 0.88) });
+    }
+    first = false;
+    beat += dur;
+  }
+  if (!notes.length) notes.push({ at: 0, midi: 69, dur: 1 });
+  return notes;
+}
+
+function rebootBassMidi(chord, eighthIndex){
+  let midi = chord && chord.length ? chord[0] : 50;
+  while (midi < 46) midi += 12;
+  while (midi > 58) midi -= 12;
+  if ((eighthIndex | 0) >= 6){
+    const fifth = midi + 7;
+    if (fifth <= 67) return fifth;
+  }
+  return midi;
+}
+
+function rebootBassSteps(section, variation){
+  if (section === 'intro') return [1, 0, 0, 0, 0, 0, 0, 0];
+  if (section === 'breakdown') return [1, 0, 0, 0, 0, 0, 1, 0];
+  const bank = [
+    [1, 0, 0, 1, 0, 0, 1, 0],
+    [1, 0, 1, 0, 0, 1, 0, 0],
+    [1, 0, 0, 0, 1, 0, 1, 0],
+    [1, 0, 0, 1, 0, 1, 0, 1]
+  ];
+  const v = Math.abs(variation | 0);
+  if (section === 'a') return bank[v % 2];
+  return bank[v % bank.length];
+}
+
+function rebootKickSteps(section, variation){
+  if (section === 'intro' || section === 'breakdown') return [0, 0, 0, 0];
+  if (section === 'a') return (variation % 2 === 0) ? [1, 0, 0, 0] : [1, 0, 1, 0];
+  return (variation % 2 === 0) ? [1, 0, 1, 0] : [1, 0, 0, 1];
+}
+
+function rebootHatSteps(section, variation){
+  if (section === 'intro') return [0, 0, 0, 1, 0, 0, 0, 1];
+  if (section === 'breakdown') return [0, 1, 0, 0, 0, 1, 0, 1];
+  if (section === 'a') return [0, 1, 0, 1, 0, 1, 0, 1];
+  return (variation % 2 === 0) ? [0, 1, 0, 1, 0, 1, 1, 0] : [0, 1, 1, 0, 0, 1, 0, 1];
+}
+
+function rebootArpEvery(section){
+  if (section === 'intro') return 4;
+  if (section === 'a' || section === 'breakdown') return 2;
+  return 1;
+}
+
+function rebootArpShape(variation, bar){
+  const shapes = ['up', 'down', 'updown'];
+  return shapes[Math.abs((variation | 0) + Math.floor((bar | 0) / 4)) % 3];
+}
+
+function rebootArpMidi(step, chord, shape){
+  if (!chord || !chord.length) return 69;
+  const pcs = [];
+  for (let i = 0; i < chord.length; i++){
+    const pc = ((chord[i] % 12) + 12) % 12;
+    if (pcs.indexOf(pc) < 0) pcs.push(pc);
+  }
+  pcs.sort((a, b) => a - b);
+  const lifted = [];
+  pcs.forEach(pc => {
+    let n = pc;
+    while (n < 62) n += 12;
+    if (n > 81) n -= 12;
+    if (n >= 62 && n <= 81 && lifted.indexOf(n) < 0) lifted.push(n);
+    if (n + 12 <= 81 && lifted.indexOf(n + 12) < 0) lifted.push(n + 12);
+  });
+  lifted.sort((a, b) => a - b);
+  if (!lifted.length) return 69;
+  const n = lifted.length;
+  const s = ((step % 997) + 997) % 997;
+  let i;
+  if (shape === 'down') i = n - 1 - (s % n);
+  else if (shape === 'updown'){
+    const cyc = Math.max(1, n * 2 - 2);
+    const p = s % cyc;
+    i = p < n ? p : cyc - p;
+  } else i = s % n;
+  return lifted[i];
+}
+
+/** 0.62 at act 1, 1 at act 10. Later jobs open the rhythm and the lead. */
+function rebootDrive(act){
+  const n = Math.max(1, Math.min(10, act || 1));
+  const intensity = 0.3 + 0.7 * ((n - 1) / 9);
+  return 0.62 + 0.38 * intensity;
+}
+
+/** Last bar of the intro, of A, and of the breakdown: a filter rise. */
+function rebootRiser(bar){
+  const b = bar | 0;
+  if (b === 3) return true;
+  if (b < 4) return false;
+  const pos = (b - 4) % 20;
+  return pos === 7 || pos === 19;
+}
+/* REBOOT_MUSIC_PURE_END */
+
+const REBOOT_CUTOFF = { intro: 520, a: 980, b: 1500, breakdown: 460 };
+const REBOOT_LAYERS = {
+  intro:     { pad: 0.055, bass: 0.07, arp: 0.032, lead: 0,     kick: 0,    hat: 0.016 },
+  a:         { pad: 0.05,  bass: 0.14, arp: 0.044, lead: 0,     kick: 0.09, hat: 0.026 },
+  b:         { pad: 0.048, bass: 0.16, arp: 0.052, lead: 0.064, kick: 0.13, hat: 0.032 },
+  breakdown: { pad: 0.052, bass: 0.08, arp: 0.038, lead: 0.036, kick: 0,    hat: 0.02 }
+};
+
+function makeImpulse(ctx, seconds, decay){
+  const rate = ctx.sampleRate;
+  const len = Math.max(1, Math.floor(rate * seconds));
+  const impulse = ctx.createBuffer(2, len, rate);
+  for (let c = 0; c < 2; c++){
+    const data = impulse.getChannelData(c);
+    for (let i = 0; i < len; i++){
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+  }
+  return impulse;
+}
+
+function makeNoiseBuffer(ctx){
+  const len = Math.max(1, ctx.sampleRate);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  return buf;
+}
+
+function tapSend(ctx, node, dest, amount){
+  const g = ctx.createGain();
+  g.gain.value = amount;
+  node.connect(g).connect(dest);
+}
+
+function buildMusicGraph(ctx, existingLimiter, initialGain){
+  let limiter = existingLimiter;
+  if (!limiter){
+    limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -16;
+    limiter.knee.value = 12;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.004;
+    limiter.release.value = 0.22;
+    limiter.connect(ctx.destination);
+  }
+
+  const musicGain = ctx.createGain();
+  musicGain.gain.value = initialGain == null ? 0.0001 : initialGain;
+
+  const air = ctx.createBiquadFilter();
+  air.type = 'lowpass';
+  air.frequency.value = 6400;
+  air.Q.value = 0.4;
+  musicGain.connect(air);
+  air.connect(limiter);
+
+  const delay = ctx.createDelay(1.2);
+  delay.delayTime.value = (60 / REBOOT_BPM) * 0.75;
+  const delayFilter = ctx.createBiquadFilter();
+  delayFilter.type = 'lowpass';
+  delayFilter.frequency.value = 2400;
+  const delayFb = ctx.createGain();
+  delayFb.gain.value = 0.26;
+  const delayWet = ctx.createGain();
+  delayWet.gain.value = 0.22;
+  delay.connect(delayFilter);
+  delayFilter.connect(delayFb);
+  delayFb.connect(delay);
+  delayFilter.connect(delayWet);
+  delayWet.connect(musicGain);
+
+  const reverb = ctx.createConvolver();
+  reverb.buffer = makeImpulse(ctx, 1.45, 2.4);
+  const reverbWet = ctx.createGain();
+  reverbWet.gain.value = 0.22;
+  reverb.connect(reverbWet);
+  reverbWet.connect(musicGain);
+
+  const pad = ctx.createGain();
+  const padFilter = ctx.createBiquadFilter();
+  padFilter.type = 'lowpass';
+  padFilter.frequency.value = 700;
+  padFilter.Q.value = 0.55;
+  pad.connect(padFilter);
+
+  const bass = ctx.createGain();
+  const bassFilter = ctx.createBiquadFilter();
+  bassFilter.type = 'lowpass';
+  bassFilter.frequency.value = 520;
+  bass.connect(bassFilter);
+
+  const arp = ctx.createGain();
+  const arpFilter = ctx.createBiquadFilter();
+  arpFilter.type = 'lowpass';
+  arpFilter.frequency.value = 1800;
+  arpFilter.Q.value = 0.45;
+  arp.connect(arpFilter);
+
+  const lead = ctx.createGain();
+  const leadFilter = ctx.createBiquadFilter();
+  leadFilter.type = 'lowpass';
+  leadFilter.frequency.value = 1900;
+  lead.connect(leadFilter);
+
+  const drum = ctx.createGain();
+  const stinger = ctx.createGain();
+
+  tapSend(ctx, padFilter, musicGain, 1);
+  tapSend(ctx, padFilter, reverb, 0.4);
+  tapSend(ctx, bassFilter, musicGain, 1);
+  tapSend(ctx, bassFilter, reverb, 0.07);
+  tapSend(ctx, arpFilter, musicGain, 1);
+  tapSend(ctx, arpFilter, reverb, 0.3);
+  tapSend(ctx, arpFilter, delay, 0.5);
+  tapSend(ctx, leadFilter, musicGain, 1);
+  tapSend(ctx, leadFilter, reverb, 0.28);
+  tapSend(ctx, leadFilter, delay, 0.38);
+  tapSend(ctx, drum, musicGain, 1);
+  tapSend(ctx, drum, reverb, 0.05);
+  tapSend(ctx, stinger, musicGain, 1);
+  tapSend(ctx, stinger, reverb, 0.24);
+  tapSend(ctx, stinger, delay, 0.2);
+
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.055;
+  const lfoAmt = ctx.createGain();
+  lfoAmt.gain.value = 130;
+  lfo.connect(lfoAmt);
+  lfoAmt.connect(padFilter.frequency);
+  lfo.start(ctx.currentTime || 0);
+
+  return {
+    ctx: ctx,
+    musicGain: musicGain,
+    pad: pad,
+    padFilter: padFilter,
+    bass: bass,
+    arp: arp,
+    arpFilter: arpFilter,
+    lead: lead,
+    drum: drum,
+    stinger: stinger,
+    noise: makeNoiseBuffer(ctx)
+  };
+}
+
+function playVoice(graph, dest, time, midi, dur, type, peakIn, attack, release, detune, vib){
+  if (!(peakIn > 0.001) || !dest || !isFinite(time)) return;
+  const ctx = graph.ctx;
+  const osc = ctx.createOscillator();
+  osc.type = type || 'sine';
+  const freq = 440 * Math.pow(2, (midi - 69) / 12);
+  osc.frequency.setValueAtTime(Math.max(30, freq), time);
+  if (detune) osc.detune.setValueAtTime(detune, time);
+  const g = ctx.createGain();
+  const a = Math.max(0.005, attack || 0.01);
+  const rel = Math.max(0.03, release || 0.08);
+  const peak = Math.max(0.001, peakIn);
+  const sustain = (dur || 0) > 1 ? 0.9 : 0.55;
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(peak, time + a);
+  const sustainAt = time + Math.max(a + 0.02, dur || a);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.001, peak * sustain), sustainAt);
+  g.gain.exponentialRampToValueAtTime(0.0001, sustainAt + rel);
+  osc.connect(g);
+  g.connect(dest);
+  if (vib){
+    const v = ctx.createOscillator();
+    const vg = ctx.createGain();
+    v.frequency.setValueAtTime(4.6, time);
+    vg.gain.setValueAtTime(6, time);
+    v.connect(vg).connect(osc.detune);
+    v.start(time);
+    v.stop(sustainAt + rel + 0.02);
+  }
+  osc.start(time);
+  osc.stop(sustainAt + rel + 0.02);
+}
+
+function playKick(graph, time, peak){
+  if (!(peak > 0.001)) return;
+  const ctx = graph.ctx;
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(142, time);
+  osc.frequency.exponentialRampToValueAtTime(48, time + 0.13);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(peak, time + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.2);
+  osc.connect(g).connect(graph.drum);
+  osc.start(time);
+  osc.stop(time + 0.24);
+}
+
+function playHat(graph, time, peak){
+  if (!(peak > 0.001) || !graph.noise) return;
+  const ctx = graph.ctx;
+  const src = ctx.createBufferSource();
+  src.buffer = graph.noise;
+  const offset = Math.random() * Math.max(0, graph.noise.duration - 0.08);
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'highpass';
+  filter.frequency.value = 5000;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(peak, time + 0.003);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
+  src.connect(filter).connect(g).connect(graph.drum);
+  src.start(time, offset);
+  src.stop(time + 0.06);
+}
+
+function playNoiseSweep(graph, time, dur){
+  if (!graph.noise) return;
+  const ctx = graph.ctx;
+  const src = ctx.createBufferSource();
+  src.buffer = graph.noise;
+  src.loop = true;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.Q.value = 0.7;
+  filter.frequency.setValueAtTime(280, time);
+  filter.frequency.exponentialRampToValueAtTime(2200, time + Math.max(0.2, dur));
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(0.028, time + dur * 0.82);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+  src.connect(filter).connect(g).connect(graph.stinger);
+  src.start(time);
+  src.stop(time + dur + 0.02);
+}
+
+function scheduleMusicBeat(graph, beat, time, state){
+  const beatDur = 60 / REBOOT_BPM;
+  const bar = Math.floor(beat / 4);
+  const beatInBar = ((beat % 4) + 4) % 4;
+  const variation = Math.floor(Math.max(0, bar - 4) / 20);
+  const scene = (state && state.scene) || 'task';
+  const section = rebootLayer(bar, scene);
+  const drive = rebootDrive(state && state.act);
+  const chord = rebootChord(bar, variation);
+  const layer = REBOOT_LAYERS[section] || REBOOT_LAYERS.a;
+
+  if (rebootRiser(bar)){
+    const climb = 520 + (beatInBar / 3) * 1700;
+    graph.padFilter.frequency.setTargetAtTime(climb, time, 0.25);
+    graph.arpFilter.frequency.setTargetAtTime(Math.min(3000, climb + 360), time, 0.25);
+    if (beatInBar === 0) playNoiseSweep(graph, time, beatDur * 4);
+  } else {
+    const wobble = Math.sin(bar * 0.55 + beatInBar * 0.4 + variation) * 180;
+    const cut = REBOOT_CUTOFF[section] + wobble + (drive - 0.6) * 240;
+    graph.padFilter.frequency.setTargetAtTime(Math.max(240, cut), time, 0.45);
+    graph.arpFilter.frequency.setTargetAtTime(Math.min(3200, cut * 1.5 + 200), time, 0.35);
+  }
+
+  if (beat % 8 === 0){
+    const dur = beatDur * 8;
+    const notePeak = layer.pad / Math.sqrt(chord.length);
+    for (let i = 0; i < chord.length; i++){
+      const midi = chord[i];
+      playVoice(graph, graph.pad, time, midi, dur, 'sine', notePeak, 0.65, 1.4, i % 2 ? 6 : -6, false);
+      playVoice(graph, graph.pad, time, midi, dur, 'triangle', notePeak * 0.3, 0.85, 1.4, i % 2 ? -9 : 9, false);
+    }
+  }
+
+  if (layer.lead > 0 && beat % 8 === 0 && (section === 'b' || section === 'breakdown')){
+    const seed = (variation + 1) * 10007 + bar * 17;
+    let phrase = rebootPhrase(seed, chord);
+    if (section === 'breakdown') phrase = phrase.filter((n, i) => i % 2 === 0);
+    const peak = layer.lead * drive;
+    for (let i = 0; i < phrase.length; i++){
+      const n = phrase[i];
+      playVoice(graph, graph.lead, time + n.at * beatDur, n.midi, n.dur * beatDur,
+        'triangle', peak, 0.035, 0.18, 0, true);
+    }
+  }
+
+  const eighth = beatDur / 2;
+  const sixteenth = beatDur / 4;
+  const bassPat = rebootBassSteps(section, variation);
+  const hatPat = rebootHatSteps(section, variation);
+  for (let e = 0; e < 2; e++){
+    const idx = beatInBar * 2 + e;
+    const when = time + e * eighth;
+    if (bassPat[idx]){
+      const midi = rebootBassMidi(chord, idx);
+      const peak = layer.bass * (idx % 2 === 0 ? 1 : 0.78);
+      playVoice(graph, graph.bass, when, midi, eighth * 0.92, 'sine', peak, 0.012, 0.08, 0, false);
+      playVoice(graph, graph.bass, when, midi + 12, eighth * 0.72, 'triangle', peak * 0.22, 0.01, 0.06, 0, false);
+    }
+    if (hatPat[idx]) playHat(graph, when, layer.hat * drive);
+  }
+
+  const kicks = rebootKickSteps(section, variation);
+  if (kicks[beatInBar]) playKick(graph, time, layer.kick * drive);
+
+  const every = rebootArpEvery(section);
+  const shape = rebootArpShape(variation, bar);
+  for (let s = 0; s < 4; s++){
+    const step = beat * 4 + s;
+    if (step % every !== 0) continue;
+    if (section === 'b' && ((step + variation) % 8 === 7)) continue;
+    const midi = rebootArpMidi(Math.floor(step / every), chord, shape);
+    const accent = s === 0 ? 1 : 0.66;
+    playVoice(graph, graph.arp, time + s * sixteenth, midi, sixteenth * 0.9,
+      'triangle', layer.arp * accent * drive, 0.006, 0.09, 0, false);
+  }
+}
+
+const Music = {
+  ctx: null,
+  graph: null,
+  beat: 0,
+  nextTime: 0,
+  timer: null,
+  started: false,
+  paused: false,
+  leaving: false,
+  scene: 'title',
+  act: 1,
+  level: 0.0001,
+  fadeStamp: null,
+  fadeFrom: 0.0001,
+  fadeTarget: 0.0001,
+  fadeDur: 0.05,
+  fadeTimer: null,
+
+  attach(ctx, limiter){
+    this.ctx = ctx;
+    if (!this.graph) this.graph = buildMusicGraph(ctx, limiter, 0.0001);
+  },
+
+  currentLevel(){
+    if (this.fadeStamp == null || !this.ctx) return this.level;
+    const t = (this.ctx.currentTime - this.fadeStamp) / this.fadeDur;
+    if (t >= 1) return this.fadeTarget;
+    if (t <= 0) return this.fadeFrom;
+    return this.fadeFrom + (this.fadeTarget - this.fadeFrom) * t;
+  },
+
+  fadeTo(target, seconds, done){
+    if (!this.graph || !this.ctx){ if (done) done(); return; }
+    const now = this.ctx.currentTime;
+    const from = Math.max(0.0001, this.currentLevel());
+    const dur = Math.max(0.05, seconds);
+    const g = this.graph.musicGain.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(from, now);
+    g.linearRampToValueAtTime(Math.max(0.0001, target), now + dur);
+    this.fadeStamp = now;
+    this.fadeFrom = from;
+    this.fadeTarget = target;
+    this.fadeDur = dur;
+    this.level = target;
+    if (this.fadeTimer) clearTimeout(this.fadeTimer);
+    this.fadeTimer = done ? setTimeout(done, dur * 1000 + 40) : null;
+  },
+
+  start(){
+    if (!this.ctx || !this.graph || this.leaving) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    const live = this.started && !this.paused;
+    if (!this.started){
+      this.started = true;
+      this.beat = 0;
+      this.nextTime = this.ctx.currentTime + 0.08;
+    } else if (!live){
+      this.nextTime = this.ctx.currentTime + 0.06;
+    }
+    this.paused = false;
+    if (!live) this.fadeTo(0.95, 0.75);
+    if (!this.timer) this.timer = setInterval(() => this.tick(), 50);
+  },
+
+  tick(){
+    if (this.paused || !this.ctx || !this.graph) return;
+    const now = this.ctx.currentTime;
+    const beatDur = 60 / REBOOT_BPM;
+    if (this.nextTime < now - 0.02) this.nextTime = now + 0.03;
+    const horizon = now + 0.32;
+    let n = 0;
+    while (this.nextTime < horizon && n++ < 4){
+      scheduleMusicBeat(this.graph, this.beat, this.nextTime, {
+        scene: this.scene,
+        act: this.act
+      });
+      this.beat++;
+      this.nextTime += beatDur;
+    }
+  },
+
+  fadeMusic(seconds){
+    this.paused = true;
+    this.fadeTo(0.0001, seconds, () => {
+      if (this.paused && this.timer){
+        clearInterval(this.timer);
+        this.timer = null;
+      }
+    });
+  },
+
+  fadeAll(seconds, done){
+    this.leaving = true;
+    this.paused = true;
+    if (Sfx.master && this.ctx){
+      const t = this.ctx.currentTime;
+      const g = Sfx.master.gain;
+      g.cancelScheduledValues(t);
+      g.setValueAtTime(Math.max(0.0001, g.value || 0.45), t);
+      g.linearRampToValueAtTime(0.0001, t + seconds);
+    }
+    this.fadeTo(0.0001, seconds, () => {
+      this.stopNow();
+      if (done) done();
+    });
+  },
+
+  hold(){
+    if (!this.graph || !this.ctx) return;
+    this.paused = true;
+    this.fadeTo(0.0001, 0.3);
+  },
+
+  stopNow(){
+    this.paused = true;
+    if (this.timer){ clearInterval(this.timer); this.timer = null; }
+    if (this.graph && this.ctx){
+      try {
+        const t = this.ctx.currentTime;
+        this.graph.musicGain.gain.cancelScheduledValues(t);
+        this.graph.musicGain.gain.setValueAtTime(0.0001, t);
+        this.level = 0.0001;
+        this.fadeStamp = null;
+      } catch (e) {}
+    }
+  },
+
+  setScene(name){ this.scene = name || 'story'; },
+  onAct(n){ this.act = n || 1; },
+
+  /** Short in-key flourish. 'clear' rises, 'fail' falls. */
+  stinger(kind){
+    if (!this.graph || !this.ctx || this.leaving || this.paused) return;
+    if (!musicWanted()) return;
+    const beatDur = 60 / REBOOT_BPM;
+    const t0 = this.ctx.currentTime + (kind === 'clear' ? 0.42 : 0.12);
+    const line = kind === 'fail' ? [69, 65, 62, 57] : [62, 65, 69, 74];
+    const peak = kind === 'fail' ? 0.055 : 0.07;
+    for (let i = 0; i < line.length; i++){
+      playVoice(this.graph, this.graph.stinger, t0 + i * beatDur * 0.45,
+        line[i], beatDur * 0.42, 'triangle', peak, 0.015, 0.16, 0, false);
+    }
+  }
+};
+
+function renderRebootMusic(seconds){
+  const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!AC) return Promise.reject(new Error('OfflineAudioContext missing'));
+  const rate = 44100;
+  const ctx = new AC(2, Math.ceil(rate * seconds), rate);
+  const graph = buildMusicGraph(ctx, null, 1);
+  const beatDur = 60 / REBOOT_BPM;
+  const beats = Math.floor((seconds - 0.25) / beatDur);
+  for (let b = 0; b < beats; b++){
+    scheduleMusicBeat(graph, b, 0.05 + b * beatDur, { scene: 'task', act: 8 });
+  }
+  return ctx.startRendering();
+}
+
+function paintMusicToggle(){
+  const b = $('#musicToggle');
+  if (!b) return;
+  const on = musicWanted();
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.setAttribute('aria-label', on
+    ? 'Music is on. Click to turn the music off.'
+    : 'Music is off. Click to turn the music on.');
+  b.title = on ? 'Turn the music off' : 'Turn the music on';
+  b.innerHTML = on ? '\u266A MUSIC ON' : '\u266A MUSIC OFF';
+}
+
+function onMusicToggle(e){
+  if (e) e.stopPropagation();
+  const on = !musicWanted();
+  saveMusicWanted(on);
+  paintMusicToggle();
+  if (on){
+    Sfx.init();
+    Music.start();
+  } else {
+    Music.fadeMusic(0.28);
+  }
+}
+
+/** First pointer or key starts the score, unless they hit mute or the exit. */
+function unlockAudio(e){
+  const t = e && e.target;
+  if (!t) return;
+  if (t.id === 'musicToggle') return;
+  if (t.closest && t.closest('a[href="index.html"]')) return;
+  Sfx.init();
+  if (musicWanted()) Music.start();
+}
+
+function leaveGame(next){
+  if (Music.leaving) return;
+  if (!Sfx.ctx){ next(); return; }
+  Music.fadeAll(0.4, next);
+}
+
+function onLeaveClick(e){
+  const a = e.target && e.target.closest && e.target.closest('a');
+  if (!a || a.getAttribute('href') !== 'index.html') return;
+  if (!Sfx.ctx) return;
+  e.preventDefault();
+  leaveGame(() => { window.location.href = a.href; });
+}
+
+function onVisibility(){
+  if (!Sfx.ctx) return;
+  if (document.hidden){
+    Music.hold();
+    const ctx = Sfx.ctx;
+    setTimeout(() => { if (document.hidden && ctx) ctx.suspend(); }, 420);
+  } else {
+    Sfx.ctx.resume();
+    if (musicWanted()) Music.start();
+  }
+}
+
+function wireMusic(){
+  paintMusicToggle();
+  const b = $('#musicToggle');
+  if (b) b.addEventListener('click', onMusicToggle);
+  document.addEventListener('pointerdown', unlockAudio, true);
+  document.addEventListener('keydown', unlockAudio, true);
+  document.addEventListener('click', onLeaveClick);
+  document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('pagehide', () => Music.stopNow());
+}
+
+window.RebootMusic = {
+  renderOffline: renderRebootMusic,
+  bpm: REBOOT_BPM,
+  /** Live transport, so a file:// check can see that the score is running. */
+  status(){
+    return {
+      started: Music.started,
+      paused: Music.paused,
+      scene: Music.scene,
+      beat: Music.beat,
+      act: Music.act,
+      ctx: Sfx.ctx ? Sfx.ctx.state : 'none'
+    };
+  }
+};
+
+wireMusic();
+
 
 /* ================================================================
  * 2. GAME STATE
@@ -1083,6 +1927,7 @@ function setAct(n, title){
   State.part = n <= ACTS_IN_PART_1 ? 1 : 2;
   $('#actLabel').textContent =
       'PART ' + State.part + ' / ACT ' + (ROMAN[n - 1] || n) + ' - ' + title;
+  Music.onAct(n);
 }
 function setStatus(txt){ $('#footStatus').textContent = txt; }
 
@@ -1176,6 +2021,7 @@ function markActDone(n){
   } catch (e) {
     // Private browsing or a full quota: the game still plays fine.
   }
+  Music.stinger('clear');
 }
 function actRecorded(n){
   try { return !!window.localStorage['reboot' + n]; } catch (e) { return false; }
@@ -1214,6 +2060,7 @@ logBox.addEventListener('pointerdown', () => { skipTyping = true; });
  * who: 'patch' | 'sys' | 'you' | 'warn'
  */
 async function say(who, text, speed){
+  Music.setScene('story');
   const names = { patch: 'P.A.T.C.H.>', nana: 'N.A.N.A.>', sys: 'SYS>',
                   you: 'YOU>', warn: '!! ALERT >' };
   const line = el('div', 'line ' + who);
@@ -1721,6 +2568,8 @@ const resyncSeconds = () => State.mode === 'hard' ? 4 : RESYNC_SECONDS;
 async function resync(tip){
   State.reboots++;
   Sfx.crash();
+  Music.stinger('fail');
+  Music.setScene('break');
   overlay.innerHTML = '';
   overlay.classList.add('show');
   overlay.appendChild(el('h2', 'glitchy', 'LET US TRY AGAIN'));
@@ -1748,6 +2597,7 @@ async function playTask(task){
   let tries = 0;
   for (;;){
     tries++;
+    Music.setScene('task');
     const mult = State.mode === 'hard' ? 1 : 1 + 0.25 * (tries - 1);
     const ok = await attempt(task, mult);
     if (ok){
@@ -1773,6 +2623,8 @@ async function playTask(task){
 /** Hard mode only: the lives ran out, so the act rewinds to its card. */
 async function outOfLives(act){
   Sfx.crash();
+  Music.stinger('fail');
+  Music.setScene('break');
   overlay.innerHTML = '';
   overlay.classList.add('show');
   overlay.appendChild(el('h1', 'glitchy', 'OUT OF LIVES'));
@@ -3868,6 +4720,7 @@ const TIMELINE_2 = [
  * 9. OVERLAY SCREENS (title card, act cards, endings)
  * ============================================================== */
 async function showCard(title, sub, ms){
+  Music.setScene('card');
   overlay.innerHTML = '';
   overlay.classList.add('show');
   overlay.appendChild(el('h1', 'glitchy', title));
@@ -3901,6 +4754,7 @@ const TROPHY = [
  * final curtain. Resolves with what the player chose to do next.
  */
 function showCelebration(part){
+  Music.setScene('finale');
   const s = State.stats;
   const acc = s.keys ? Math.round(100 * (1 - s.typos / s.keys)) : 100;
   const secs = part === 1 ? elapsed() : State.partOneSeconds + elapsed();
@@ -3965,7 +4819,7 @@ function showCelebration(part){
 
   return new Promise(resolve => {
     const again = el('button', 'btn big', 'PLAY AGAIN');
-    again.addEventListener('click', () => location.reload());
+    again.addEventListener('click', () => leaveGame(() => location.reload()));
     const menu = el('a', 'btn big', 'BACK TO GAMES');
     menu.href = 'index.html';
 
@@ -4099,7 +4953,7 @@ function showCertificate(name, timePlayed, accuracy){
   const print = el('button', 'btn big go', 'PRINT IT');
   print.addEventListener('click', () => { Sfx.blip(); window.print(); });
   const again = el('button', 'btn big', 'PLAY AGAIN');
-  again.addEventListener('click', () => location.reload());
+  again.addEventListener('click', () => leaveGame(() => location.reload()));
   const menu = el('a', 'btn big', 'BACK TO GAMES');
   menu.href = 'index.html';
   row.append(print, again, menu);
@@ -4166,6 +5020,8 @@ function titleScreen(){
   return new Promise(resolve => {
     const begin = (mode) => {
       Sfx.init();              // AudioContext must start from a user gesture
+      if (musicWanted()) Music.start();
+      Music.setScene('story');
       Sfx.boot();
       paintLives();
       overlay.classList.remove('show');

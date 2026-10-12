@@ -96,7 +96,9 @@ Key chips adapt to the machine: Windows and Chromebooks are told `CTRL`, Apple h
 
 Unlike the other games, `appengine/reboot.html` is one self-contained file — markup, styles, logic and synthesised audio — with no build step and no Closure pass. Edit it directly; `make games` does not touch it, and `node build/test_reboot.js` guards its structure.
 
-Each finished act writes `reboot1` through `reboot10`, so the hub card fills up gradually and a student who stops halfway keeps their place. Once acts 1-4 are recorded the title screen offers **Continue Part 2**, which is how a second lesson picks up where the first left off. The chosen ending lives in `reboot_ending`, the furthest part in `reboot_part`, and the certificate name in `reboot_name`; **Clear data** removes all of them.
+A procedural soundtrack plays under the story: pad, pulsing bass, arpeggio, lead, and a soft kick and hat, with delay and reverb. It is generated in the browser, so there is no audio file to fetch. The **♪ MUSIC** button in the top-right corner turns it off and remembers that choice in `reboot_music`. Music starts on the first click or keypress, and it fades out when the tab is hidden or when the player leaves for the hub.
+
+Each finished act writes `reboot1` through `reboot10`, so the hub card fills up gradually and a student who stops halfway keeps their place. Once acts 1-4 are recorded the title screen offers **Continue Part 2**, which is how a second lesson picks up where the first left off. The chosen ending lives in `reboot_ending`, the furthest part in `reboot_part`, the certificate name in `reboot_name`, and the music choice in `reboot_music`; **Clear data** removes all of them, so the next student on a shared computer hears the theme again.
 
 The `appengine/` folder is the static web root (legacy name from upstream). It is not an App Engine app.
 
